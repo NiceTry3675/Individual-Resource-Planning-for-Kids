@@ -1,0 +1,21 @@
+{
+  "name": "ieum-agent-server",
+  "private": true,
+  "description": "이음 에이전트 서버: 플렉스튜디오 화면이 부르는 조회·쓰기 API",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:apply": "node scripts/apply-sql.mjs"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "mssql": "^12.7.11"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^26.6.5",
+    "@vercel/node": "^27.0.2",
+    "typescript": "^7.0.2"
+  }
+}

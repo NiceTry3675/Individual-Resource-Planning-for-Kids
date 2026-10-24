@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["icn1"],
+  "functions": {
+    "api/**/*.ts": { "maxDuration": 60 }
+  },
+  "rewrites": [
+    { "source": "/views/:view", "destination": "/api/views/:view" },
+    { "source": "/health", "destination": "/api/health" }
+  ]
+}

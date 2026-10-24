@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이음 다이어그램</title>
+<!--FONT--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap"><!--/FONT-->
+<style>
+  /* 발표 자료(이음_발표대본.pptx)와 같은 색과 자리: 글자 1F1F1F, 파랑 0F7FB7, 회색 6B6B6B, 주황 FC5C15 */
+  :root {
+    --ink: #1F1F1F; --sub: #4A4F55; --gray: #6B6B6B; --hair: #D7DCE1;
+    --blue: #0F7FB7; --blue-t: #EEF6FB;
+    --orange: #FC5C15; --orange-d: #E5520F; --orange-t: #FFF4EE;
+    --violet: #6A4FD0; --violet-t: #F4F1FD;
+    --ext: #5E6670; --ext-t: #F4F5F7;
+    --band: #F5F7F9;
+  }
+  html, body { margin: 0; background: #fff; }
+  body { font-family: 'Noto Sans KR', 'Noto Sans CJK KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+  @page { size: 1920px 1080px; margin: 0; }
+  .frame { width: 1920px; height: 1080px; overflow: hidden; break-after: page; }
+  .frame:last-child { break-after: auto; }
+  .stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #fff; color: var(--ink); letter-spacing: -0.015em; }
+  @media print { body.all { padding: 0; background: #fff; } .frame { transform: none !important; margin: 0 !important; box-shadow: none !important; } }
+  @media screen { body.all { background: #E9ECEF; padding: 24px 0; } body.all .frame { box-shadow: 0 2px 12px rgba(0,0,0,.08); transform-origin: top left; } }
+
+  .section { position: absolute; left: 104px; top: 40px; font-size: 27px; font-weight: 700; color: var(--blue); }
+  .title { position: absolute; left: 104px; top: 92px; font-size: 58px; font-weight: 800; letter-spacing: -0.03em; display: flex; align-items: center; gap: 18px; line-height: 1.2; }
+  .title .num { width: 60px; height: 60px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 34px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .subtitle { position: absolute; left: 104px; top: 184px; font-size: 29px; font-weight: 500; color: var(--sub); }
+
+  .legend { position: absolute; right: 80px; top: 48px; display: grid; grid-template-columns: auto auto; gap: 12px 28px; font-size: 22px; color: var(--sub); }
+  .legend .it { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .legend .sw { width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; }
+  .legend .sw.dash { border-radius: 6px; border: 2.5px dashed var(--ext); background: #fff; }
+
+  .phase { position: absolute; top: 284px; height: 44px; }
+  .phase .lb { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 27px; font-weight: 800; }
+  .phase .br { position: absolute; left: 12px; right: 12px; top: 42px; height: 10px; border: 2.5px solid; border-bottom: none; border-radius: 8px 8px 0 0; }
+
+  /* 상자: 아이콘 + 제목 + 짧은 한 줄 */
+  .node { position: absolute; box-sizing: border-box; border: 2.5px solid; border-radius: 20px; padding: 20px 14px 22px; background: #fff; text-align: center; }
+  .node.dash { border-style: dashed; }
+  .node .ic { width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; color: #fff; }
+  .node .ic svg { width: 38px; height: 38px; }
+  .node .t { font-size: 30px; font-weight: 800; line-height: 1.25; letter-spacing: -0.03em; white-space: nowrap; }
+  .node .b { font-size: 23px; font-weight: 500; line-height: 1.35; color: var(--sub); margin-top: 6px; white-space: nowrap; }
+  .node .b b { color: var(--ink); font-weight: 800; }
+  /* 가로형: 아이콘 왼쪽, 글자 오른쪽 */
+  .node.row { display: flex; align-items: center; gap: 16px; text-align: left; padding: 16px 20px; }
+  .node.row .ic { width: 60px; height: 60px; margin: 0; flex: none; }
+  .node.row .ic svg { width: 32px; height: 32px; }
+  .node.row .tx { min-width: 0; flex: none; }
+  /* 서비스 로고는 흰 타일에 원래 색 그대로 */
+  .node .ic.brand { background: #fff; border: 2px solid var(--hair); box-sizing: border-box; }
+  .node .ic.brand svg, .node .ic.brand img { width: 40px; height: 40px; }
+  .node.row .ic.brand svg, .node.row .ic.brand img { width: 36px; height: 36px; }
+  .node .ic.brand img { width: 50px; height: 50px; }
+  .ib svg, .ib img { width: 22px; height: 22px; vertical-align: -4px; margin-right: 6px; }
+  .group .gt .ib svg { width: 28px; height: 28px; vertical-align: -3px; margin-right: 12px; }
+  .node.row .t { font-size: 28px; }
+  .node.row .b { font-size: 22px; margin-top: 2px; }
+  /* 파이프라인 작은 상자 */
+  .node.mini { padding: 14px 6px 14px; }
+  .node.mini .ic { width: 50px; height: 50px; margin-bottom: 8px; }
+  .node.mini .ic svg { width: 27px; height: 27px; }
+  .node.mini .t { font-size: 25px; }
+
+  .k-parent { border-color: var(--orange); background: var(--orange-t); } .k-parent .ic, .legend .k-parent { background: var(--orange-d); }
+  .k-llm { border-color: var(--violet); background: var(--violet-t); } .k-llm .ic, .legend .k-llm { background: var(--violet); }
+  .k-code { border-color: var(--blue); background: var(--blue-t); } .k-code .ic, .legend .k-code { background: var(--blue); }
+  .k-ext { border-color: var(--ext); background: var(--ext-t); } .k-ext .ic, .legend .k-ext { background: var(--ext); }
+  .k-plain { border-color: #AEB6BF; background: #fff; } .k-plain .ic { background: var(--gray); }
+
+  .group { position: absolute; box-sizing: border-box; border: 3px solid var(--blue); border-radius: 24px; background: #FAFCFE; }
+  .group .gt { position: absolute; left: 28px; top: 18px; font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }
+  .group .gs { position: absolute; left: 28px; top: 64px; font-size: 22px; font-weight: 500; color: var(--sub); white-space: nowrap; }
+  .glabel { position: absolute; text-align: center; font-size: 22px; font-weight: 800; color: var(--sub); }
+
+  .gate { position: absolute; top: 370px; width: 0; border-left: 3px dashed var(--orange); }
+  .gate .lb { position: absolute; top: -12px; left: -130px; width: 260px; text-align: center; font-size: 23px; font-weight: 800; color: var(--orange); background: #fff; padding: 2px 0 4px; }
+
+  .footer { position: absolute; left: 80px; right: 80px; top: 930px; height: 108px; border-radius: 18px; background: var(--band); display: flex; align-items: center; padding: 0 40px; box-sizing: border-box; gap: 38px; }
+  .footer .counter { display: flex; align-items: baseline; gap: 16px; white-space: nowrap; }
+  .footer .counter .from { font-size: 29px; font-weight: 700; color: var(--gray); text-decoration: line-through; text-decoration-thickness: 2px; }
+  .footer .counter .arrow { font-size: 30px; font-weight: 800; color: var(--gray); }
+  .footer .counter .to { font-size: 42px; font-weight: 900; color: var(--orange); letter-spacing: -0.03em; }
+  .footer .sep { width: 2px; align-self: stretch; margin: 26px 0; background: var(--hair); }
+  .footer .rules { flex: 1; display: flex; justify-content: space-evenly; gap: 34px; font-size: 26px; font-weight: 600; color: var(--sub); }
+  .footer .rules span { white-space: nowrap; }
+  .footer .rules i { font-style: normal; font-weight: 800; color: var(--ink); }
+  .footer.only .rules { justify-content: space-between; font-size: 27px; }
+
+  svg.wires { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; pointer-events: none; }
+  .elabel { position: absolute; transform: translate(-50%, -50%); font-size: 22px; font-weight: 700; color: var(--sub); background: #fff; padding: 1px 8px 2px; border-radius: 6px; white-space: nowrap; }
+  /* 묶음 배경 위에 선, 선 위에 상자와 라벨 */
+  .group { z-index: 0; } svg.wires { z-index: 1; } .node, .glabel, .gate { z-index: 2; } .elabel { z-index: 3; }
+  #report { display: none; }
+</style>
+</head>
+<body>
+<pre id="report"></pre>
+<script>
+// 다이어그램 4장: ?d=ledger | radar | resume | arch (없으면 4장 모두, 인쇄하면 한 장에 하나씩)
+// 내용 출처: 이음-MVP-스펙.md(장면별 요구사항, 시스템 구성, 에이전트), 이음-연동-계획.md, server/, 이음/
+// 아이콘: Lucide (lucide-static 0.460.0, ISC 라이선스)
+const ICONS = {
+  'building-2': '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+  'calculator': '<rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
+  'calendar-check': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+  'calendar-days': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>',
+  'camera': '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  'circle-check': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'folder-check': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="m9 13 2 2 4-4"/>',
+  'inbox': '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  'layers': '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  'mail': '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  'megaphone': '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  'message-square-text': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/>',
+  'notebook-pen': '<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>',
+  'pen-line': '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
+  'plug': '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  'receipt': '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+  'search-check': '<path d="m8 11 2 2 4-4"/><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  'send': '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+  'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  'sparkles': '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+  'target': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  'user-round': '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+};
+// 서비스 로고: 플렉스튜디오(flextudio.com 심볼), Azure SQL(Microsoft Azure 아키텍처 아이콘 V24), OpenAI·Vercel·React(Simple Icons 13.21.0)
+const BRANDS = {
+  flextudio: '<img alt="" src="data:image/png;base64,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">',
+  vercel: '<svg viewBox="0 0 24 24"><path fill="#000000" d="M24 22.525H0l12-21.05 12 21.05z"/></svg>',
+  openai: '<svg viewBox="0 0 24 24"><path fill="#000000" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>',
+  react: '<svg viewBox="0 0 24 24"><path fill="#087EA4" d="M14.23 12.004a2.236 2.236 0 0 1-2.235 2.236 2.236 2.236 0 0 1-2.236-2.236 2.236 2.236 0 0 1 2.235-2.236 2.236 2.236 0 0 1 2.236 2.236zm2.648-10.69c-1.346 0-3.107.96-4.888 2.622-1.78-1.653-3.542-2.602-4.887-2.602-.41 0-.783.093-1.106.278-1.375.793-1.683 3.264-.973 6.365C1.98 8.917 0 10.42 0 12.004c0 1.59 1.99 3.097 5.043 4.03-.704 3.113-.39 5.588.988 6.38.32.187.69.275 1.102.275 1.345 0 3.107-.96 4.888-2.624 1.78 1.654 3.542 2.603 4.887 2.603.41 0 .783-.09 1.106-.275 1.374-.792 1.683-3.263.973-6.365C22.02 15.096 24 13.59 24 12.004c0-1.59-1.99-3.097-5.043-4.032.704-3.11.39-5.587-.988-6.38-.318-.184-.688-.277-1.092-.278zm-.005 1.09v.006c.225 0 .406.044.558.127.666.382.955 1.835.73 3.704-.054.46-.142.945-.25 1.44-.96-.236-2.006-.417-3.107-.534-.66-.905-1.345-1.727-2.035-2.447 1.592-1.48 3.087-2.292 4.105-2.295zm-9.77.02c1.012 0 2.514.808 4.11 2.28-.686.72-1.37 1.537-2.02 2.442-1.107.117-2.154.298-3.113.538-.112-.49-.195-.964-.254-1.42-.23-1.868.054-3.32.714-3.707.19-.09.4-.127.563-.132zm4.882 3.05c.455.468.91.992 1.36 1.564-.44-.02-.89-.034-1.345-.034-.46 0-.915.01-1.36.034.44-.572.895-1.096 1.345-1.565zM12 8.1c.74 0 1.477.034 2.202.093.406.582.802 1.203 1.183 1.86.372.64.71 1.29 1.018 1.946-.308.655-.646 1.31-1.013 1.95-.38.66-.773 1.288-1.18 1.87-.728.063-1.466.098-2.21.098-.74 0-1.477-.035-2.202-.093-.406-.582-.802-1.204-1.183-1.86-.372-.64-.71-1.29-1.018-1.946.303-.657.646-1.313 1.013-1.954.38-.66.773-1.286 1.18-1.868.728-.064 1.466-.098 2.21-.098zm-3.635.254c-.24.377-.48.763-.704 1.16-.225.39-.435.782-.635 1.174-.265-.656-.49-1.31-.676-1.947.64-.15 1.315-.283 2.015-.386zm7.26 0c.695.103 1.365.23 2.006.387-.18.632-.405 1.282-.66 1.933-.2-.39-.41-.783-.64-1.174-.225-.392-.465-.774-.705-1.146zm3.063.675c.484.15.944.317 1.375.498 1.732.74 2.852 1.708 2.852 2.476-.005.768-1.125 1.74-2.857 2.475-.42.18-.88.342-1.355.493-.28-.958-.646-1.956-1.1-2.98.45-1.017.81-2.01 1.085-2.964zm-13.395.004c.278.96.645 1.957 1.1 2.98-.45 1.017-.812 2.01-1.086 2.964-.484-.15-.944-.318-1.37-.5-1.732-.737-2.852-1.706-2.852-2.474 0-.768 1.12-1.742 2.852-2.476.42-.18.88-.342 1.356-.494zm11.678 4.28c.265.657.49 1.312.676 1.948-.64.157-1.316.29-2.016.39.24-.375.48-.762.705-1.158.225-.39.435-.788.636-1.18zm-9.945.02c.2.392.41.783.64 1.175.23.39.465.772.705 1.143-.695-.102-1.365-.23-2.006-.386.18-.63.406-1.282.66-1.933zM17.92 16.32c.112.493.2.968.254 1.423.23 1.868-.054 3.32-.714 3.708-.147.09-.338.128-.563.128-1.012 0-2.514-.807-4.11-2.28.686-.72 1.37-1.536 2.02-2.44 1.107-.118 2.154-.3 3.113-.54zm-11.83.01c.96.234 2.006.415 3.107.532.66.905 1.345 1.727 2.035 2.446-1.595 1.483-3.092 2.295-4.11 2.295-.22-.005-.406-.05-.553-.132-.666-.38-.955-1.834-.73-3.703.054-.46.142-.944.25-1.438zm4.56.64c.44.02.89.034 1.345.034.46 0 .915-.01 1.36-.034-.44.572-.895 1.095-1.345 1.565-.455-.47-.91-.993-1.36-1.565z"/></svg>',
+  azuresql: '<svg viewBox="0 0 18 18"><defs><linearGradient id="ef16bf9d-a8b6-4181-b6cd-66fc5203f956" x1="2.59" y1="10.16" x2="15.41" y2="10.16" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#005ba1"/><stop offset="0.07" stop-color="#0060a9"/><stop offset="0.36" stop-color="#0071c8"/><stop offset="0.52" stop-color="#0078d4"/><stop offset="0.64" stop-color="#0074cd"/><stop offset="0.82" stop-color="#006abb"/><stop offset="1" stop-color="#005ba1"/></linearGradient><radialGradient id="bf3846c3-4d74-4743-ab9a-f334c248bd92" cx="9.36" cy="10.57" r="7.07" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f2f2f2"/><stop offset="0.58" stop-color="#eee"/><stop offset="1" stop-color="#e6e6e6"/></radialGradient></defs><path d="M9,5.14c-3.54,0-6.41-1-6.41-2.32V15.18c0,1.27,2.82,2.3,6.32,2.32H9c3.54,0,6.41-1,6.41-2.32V2.82C15.41,4.11,12.54,5.14,9,5.14Z" fill="url(#ef16bf9d-a8b6-4181-b6cd-66fc5203f956)"/><path d="M15.41,2.82c0,1.29-2.87,2.32-6.41,2.32s-6.41-1-6.41-2.32S5.46.5,9,.5s6.41,1,6.41,2.32" fill="#e8e8e8"/><path d="M13.92,2.63c0,.82-2.21,1.48-4.92,1.48S4.08,3.45,4.08,2.63,6.29,1.16,9,1.16s4.92.66,4.92,1.47" fill="#50e6ff"/><path d="M9,3a11.55,11.55,0,0,0-3.89.57A11.42,11.42,0,0,0,9,4.11a11.15,11.15,0,0,0,3.89-.58A11.84,11.84,0,0,0,9,3Z" fill="#198ab3"/><path d="M12.9,11.4V8H12v4.13h2.46V11.4ZM5.76,9.73a1.83,1.83,0,0,1-.51-.31.44.44,0,0,1-.12-.32.34.34,0,0,1,.15-.3.68.68,0,0,1,.42-.12,1.62,1.62,0,0,1,1,.29V8.11a2.58,2.58,0,0,0-1-.16,1.64,1.64,0,0,0-1.09.34,1.08,1.08,0,0,0-.42.89c0,.51.32.91,1,1.21a2.88,2.88,0,0,1,.62.36.42.42,0,0,1,.15.32.38.38,0,0,1-.16.31.81.81,0,0,1-.45.11,1.66,1.66,0,0,1-1.09-.42V12a2.17,2.17,0,0,0,1.07.24,1.88,1.88,0,0,0,1.18-.33A1.08,1.08,0,0,0,6.84,11a1.05,1.05,0,0,0-.25-.7A2.42,2.42,0,0,0,5.76,9.73ZM11,11.32a2.34,2.34,0,0,0,.33-1.26A2.32,2.32,0,0,0,11,9a1.81,1.81,0,0,0-.7-.75,2,2,0,0,0-1-.26,2.11,2.11,0,0,0-1.08.27A1.86,1.86,0,0,0,7.49,9a2.46,2.46,0,0,0-.26,1.14,2.26,2.26,0,0,0,.24,1,1.76,1.76,0,0,0,.69.74,2.06,2.06,0,0,0,1,.3l.86,1h1.21L10,12.08A1.79,1.79,0,0,0,11,11.32ZM10,11.07a.94.94,0,0,1-.76.35.92.92,0,0,1-.76-.36,1.52,1.52,0,0,1-.29-1,1.53,1.53,0,0,1,.29-1,1,1,0,0,1,.78-.37.87.87,0,0,1,.75.37,1.62,1.62,0,0,1,.27,1A1.46,1.46,0,0,1,10,11.07Z" fill="url(#bf3846c3-4d74-4743-ab9a-f334c248bd92)"/></svg>',
+};
+const brandMark = (name) => `<span class="ib">${BRANDS[name]}</span>`;
+const withBrands = (s) => s.replace(/\{(\w+)\}/g, (m, k) => (BRANDS[k] ? brandMark(k) : m));
+const svgIcon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+
+const LEGEND = [['parent', '부모'], ['llm', 'AI 모델 (해석·작성)'], ['code', '코드 (계산·판정)'], ['ext', '바깥 (기관·공고)']];
+const X0 = 80, COLS = 6, COLW = 1760 / COLS, BOXW = 256;
+const colX = (c) => X0 + c * COLW + (COLW - BOXW) / 2;
+const gapX = (c) => X0 + c * COLW; // c-1열과 c열 사이 세로선 자리
+const A = 505, B = 770, MID = 637;  // 위·아래 줄과 가운데의 세로 중심
+
+const FLOW = {
+  ledger: {
+    num: '1', title: '한 장 장부', sub: '바우처·일정·결제를 한 장부로 묶고, 사라지기 전에 알림',
+    phases: [['넘기면', 0, 0, 'orange'], ['이음 에이전트가 묶고 정리', 1, 3, 'blue'], ['부모는 승인만', 4, 5, 'orange']],
+    nodes: [
+      { id: 'in1', col: 0, cy: A, kind: 'ext', icon: 'receipt', t: '이용 내역', b: '이번 달 6건' },
+      { id: 'in2', col: 0, cy: B, kind: 'parent', icon: 'message-square-text', t: '센터 문자', b: '이번 달 12개' },
+      { id: 'ai1', col: 1, cy: MID, kind: 'llm', brand: 'openai', t: 'AI가 구조화', b: '날짜·기관·금액' },
+      { id: 'c1', col: 2, cy: A, kind: 'code', icon: 'search-check', t: '결제 대조', b: '확인할 결제 1건' },
+      { id: 'c2', col: 2, cy: B, kind: 'code', icon: 'calculator', t: '잔액 계산', b: '7일 뒤 3만 원 소멸' },
+      { id: 'w1', col: 3, cy: A, kind: 'llm', brand: 'openai', t: '확인 문자', b: 'AI 초안' },
+      { id: 'w2', col: 3, cy: B, kind: 'llm', brand: 'openai', t: '보강 요청', b: 'AI 초안' },
+      { id: 'p1', col: 4, cy: MID, kind: 'parent', icon: 'circle-check', t: '승인 2번', b: '카드 보고 확인' },
+      { id: 'o1', col: 5, cy: MID, kind: 'ext', dash: 1, icon: 'send', t: 'A 언어센터', b: '문자로 보냄' },
+    ],
+    edges: [['in1', 'ai1'], ['in2', 'ai1'], ['ai1', 'c1'], ['ai1', 'c2'], ['c1', 'w1'], ['c2', 'w2'], ['w1', 'p1'], ['w2', 'p1'], ['p1', 'o1']],
+    counter: ['손 작업 6단계', '승인 2번'],
+    rules: ['숫자는 <i>코드</i>가 계산', '글은 <i>AI</i>가 쓰고 코드가 검사'],
+  },
+  radar: {
+    num: '2', title: '맞춤 지원 레이더', sub: '흩어진 지원 공고에서 우리 아이 것만 찾아 신청까지',
+    phases: [['알아서 모으고', 0, 0, 'blue'], ['이음 에이전트가 찾고 채우고', 1, 3, 'blue'], ['부모는 승인만', 4, 5, 'orange']],
+    nodes: [
+      { id: 'in1', col: 0, cy: A, kind: 'ext', icon: 'megaphone', t: '지원 공고', b: '자동 수집 5건' },
+      { id: 'in2', col: 0, cy: B, kind: 'parent', icon: 'user-round', t: '프로필·서류함', b: '처음 한 번 등록' },
+      { id: 'ai1', col: 1, cy: A, kind: 'llm', brand: 'openai', t: 'AI가 구조화', b: '대상·마감·서류' },
+      { id: 'c1', col: 2, cy: A, kind: 'code', icon: 'target', t: '대상 판정', b: '5건 중 1건 해당' },
+      { id: 'c2', col: 2, cy: B, kind: 'code', icon: 'folder-check', t: '서류 대조', b: '빠진 서류 안내' },
+      { id: 'w1', col: 3, cy: A, kind: 'llm', brand: 'openai', t: '추천 이유', b: '왜 해당하는지' },
+      { id: 'w2', col: 3, cy: B, kind: 'llm', brand: 'openai', t: '신청서 초안', b: '프로필로 채움' },
+      { id: 'p1', col: 4, cy: MID, kind: 'parent', icon: 'circle-check', t: '승인 1번', b: '+ 서류 직접 발급' },
+      { id: 'o1', col: 5, cy: 545, kind: 'ext', dash: 1, icon: 'mail', t: '이메일 제출', b: '복지관·구청' },
+      { id: 'o2', col: 5, cy: 800, kind: 'code', icon: 'calendar-check', t: '결과 발표일', b: '일정에 등록' },
+    ],
+    edges: [
+      ['in1', 'ai1'], ['ai1', 'c1'], ['in2', 'c1', '', null, { mx: gapX(2) - 14 }], ['in2', 'c2'],
+      ['c1', 'c2', '', 'v'], ['c1', 'w1'], ['c2', 'w2'], ['w1', 'p1'], ['w2', 'p1'],
+      ['p1', 'o1', '', null, { y1: 545 }], ['o1', 'o2', '', 'v'],
+    ],
+    gateH: 310,
+    counter: ['손 작업 6단계', '승인 1번 · 직접 1번'],
+    rules: ['<i>찾지 않아도</i> 먼저 알림', '공고가 요구한 <i>항목만</i> 채움'],
+  },
+  resume: {
+    num: '3', title: '아이 이력서', sub: '여러 기관의 기록을 IEP 준비·인계서 한 장으로',
+    phases: [['넘기면', 0, 0, 'orange'], ['이음 에이전트가 쌓고 쓰고', 1, 3, 'blue'], ['부모는 승인만', 4, 5, 'orange']],
+    nodes: [
+      { id: 'in1', col: 0, cy: A, kind: 'parent', icon: 'notebook-pen', t: '기관·가정 기록', b: '평소에 넘김' },
+      { id: 'in2', col: 0, cy: B, kind: 'parent', icon: 'camera', t: 'IEP 안내문', b: '사진 1장' },
+      { id: 'ai1', col: 1, cy: MID, kind: 'llm', brand: 'openai', t: 'AI가 구조화', b: '기록·날짜 정리' },
+      { id: 'c1', col: 2, cy: A, kind: 'code', icon: 'layers', t: '아이 이력서', b: '기관별로 쌓기' },
+      { id: 'c2', col: 2, cy: B, kind: 'code', icon: 'calendar-days', t: '일정 등록', b: 'IEP 협의 날짜' },
+      { id: 'w1', col: 3, cy: MID, kind: 'llm', brand: 'openai', t: 'IEP 준비 한 장', b: '인계서로도 전환' },
+      { id: 'p1', col: 4, cy: MID, kind: 'parent', icon: 'circle-check', t: '승인 1번', b: '미리 보고 공유' },
+      { id: 'o1', col: 5, cy: MID, kind: 'ext', dash: 1, icon: 'share-2', t: '공유 링크', b: '앱 설치 없이' },
+    ],
+    edges: [['in1', 'ai1'], ['in2', 'ai1'], ['ai1', 'c1'], ['ai1', 'c2'], ['c1', 'w1'], ['c2', 'w1'], ['w1', 'p1'], ['p1', 'o1']],
+    counter: ['손 작업 4단계', '승인 1번'],
+    rules: ['기록은 <i>한 번</i> 쌓고', '문서는 <i>여러 번</i> 씀'],
+  },
+};
+
+function el(tag, cls, html, parent) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function place(e, x, y, w, h) {
+  if (x != null) e.style.left = x + 'px';
+  if (y != null) e.style.top = y + 'px';
+  if (w != null) e.style.width = w + 'px';
+  if (h != null) e.style.height = h + 'px';
+}
+function rectOf(e) {
+  const l = e.offsetLeft, t = e.offsetTop, w = e.offsetWidth, h = e.offsetHeight;
+  return { l, t, r: l + w, b: t + h, cx: l + w / 2, cy: t + h / 2, w, h };
+}
+
+function header(stage, d, sectionText, showDash) {
+  el('div', 'section', sectionText, stage);
+  const t = el('div', 'title', '', stage);
+  if (d.num) el('div', 'num', d.num, t);
+  el('span', '', d.title, t);
+  el('div', 'subtitle', d.sub, stage);
+  const lg = el('div', 'legend', '', stage);
+  for (const [k, text] of LEGEND) {
+    const it = el('div', 'it', '', lg);
+    el('span', 'sw k-' + k, '', it);
+    el('span', '', text, it);
+  }
+  if (showDash) {
+    const it = el('div', 'it', '', lg);
+    el('span', 'sw dash', '', it);
+    el('span', '', '점선: 시연에서는 목업', it);
+  }
+}
+
+// n: { id, kind, icon | brand, t, b, dash?, row?, mini? } — t·b 안의 {react} 같은 표시는 작은 로고로 바뀐다
+function node(stage, n, x, w) {
+  const cls = ['node', 'k-' + n.kind, n.dash && 'dash', n.row && 'row', n.mini && 'mini'].filter(Boolean).join(' ');
+  const e = el('div', cls, '', stage);
+  e.dataset.id = n.id;
+  el('div', n.brand ? 'ic brand' : 'ic', n.brand ? BRANDS[n.brand] : svgIcon(n.icon), e);
+  const text = n.row ? el('div', 'tx', '', e) : e;
+  el('div', 't', withBrands(n.t), text);
+  if (n.b) el('div', 'b', withBrands(n.b), text);
+  place(e, x, 0, w);
+  return e;
+}
+
+// 상자 가장자리끼리 꺾은선으로 잇는다. 기본은 오른쪽 → 왼쪽, 'v'는 아래 → 위.
+function wirePath(a, b, mode, opt = {}) {
+  const r = 12;
+  if (mode === 'v') {
+    const x = (Math.max(a.l, b.l) + Math.min(a.r, b.r)) / 2;
+    return { d: `M${x},${a.b} V${b.t - 3}`, lx: x, ly: (a.b + b.t) / 2 };
+  }
+  const x1 = a.r, y1 = opt.y1 != null ? opt.y1 : a.cy, x2 = b.l, y2 = opt.y2 != null ? opt.y2 : b.cy;
+  if (Math.abs(y1 - y2) < 1) return { d: `M${x1},${y1} H${x2 - 3}`, lx: (x1 + x2) / 2, ly: y1 };
+  const mx = opt.mx != null ? opt.mx : (x1 + x2) / 2, s = y2 > y1 ? 1 : -1;
+  return {
+    d: `M${x1},${y1} H${mx - r} Q${mx},${y1} ${mx},${y1 + s * r} V${y2 - s * r} Q${mx},${y2} ${mx + r},${y2} H${x2 - 3}`,
+    lx: mx, ly: (y1 + y2) / 2,
+  };
+}
+
+const NS = 'http://www.w3.org/2000/svg';
+const WIRE = { gray: '#8E98A3', blue: '#0F7FB7', orange: '#FC5C15' };
+function wireLayer(stage) {
+  let svg = stage.querySelector('svg.wires');
+  if (svg) return svg;
+  svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'wires');
+  svg.innerHTML = '<defs>' + Object.entries(WIRE).map(([k, c]) =>
+    `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('') + '</defs>';
+  stage.insertBefore(svg, stage.firstChild);
+  return svg;
+}
+function stroke(stage, d, opt = {}) {
+  const svg = wireLayer(stage);
+  const k = opt.color || 'gray';
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', d); p.setAttribute('fill', 'none');
+  p.setAttribute('stroke', WIRE[k]); p.setAttribute('stroke-width', 3);
+  p.setAttribute('stroke-linejoin', 'round');
+  if (opt.dash) p.setAttribute('stroke-dasharray', '8 7');
+  p.setAttribute('marker-end', `url(#ah-${k})`);
+  if (opt.both) p.setAttribute('marker-start', `url(#ah-${k})`);
+  svg.appendChild(p);
+}
+function label(stage, text, x, y) {
+  const l = el('div', 'elabel', text, stage);
+  l.style.left = x + 'px'; l.style.top = y + 'px';
+  return l;
+}
+function drawEdges(stage, edges, byId) {
+  for (const [from, to, text, mode, opt = {}] of edges) {
+    const p = wirePath(rectOf(byId[from]), rectOf(byId[to]), mode, opt);
+    stroke(stage, p.d, opt);
+    if (text) label(stage, text, opt.lx != null ? opt.lx : p.lx, opt.ly != null ? opt.ly : p.ly);
+  }
+}
+
+function footer(stage, d) {
+  const f = el('div', 'footer' + (d.counter ? '' : ' only'), '', stage);
+  if (d.counter) {
+    const c = el('div', 'counter', '', f);
+    el('span', 'from', d.counter[0], c);
+    el('span', 'arrow', '→', c);
+    el('span', 'to', d.counter[1], c);
+    el('div', 'sep', '', f);
+  }
+  const r = el('div', 'rules', '', f);
+  for (const t of d.rules) el('span', '', t, r);
+}
+
+function renderFlow(stage, d) {
+  header(stage, d, 'Ⅱ. 솔루션 · 에이전트 흐름', true);
+  for (const [text, c0, c1, color] of d.phases) {
+    const p = el('div', 'phase', '', stage);
+    place(p, X0 + c0 * COLW, null, (c1 - c0 + 1) * COLW);
+    el('div', 'lb', text, p).style.color = `var(--${color})`;
+    el('div', 'br', '', p).style.borderColor = `var(--${color})`;
+  }
+  const byId = {};
+  for (const n of d.nodes) {
+    const e = node(stage, n, colX(n.col), BOXW);
+    e.style.top = Math.round(n.cy - e.offsetHeight / 2) + 'px';
+    byId[n.id] = e;
+  }
+  const g = el('div', 'gate', '', stage);
+  place(g, gapX(5), null, null, d.gateH || 530);
+  el('div', 'lb', '승인한 것만 밖으로', g);
+  drawEdges(stage, d.edges, byId);
+  footer(stage, d);
+}
+
+// ── 서비스 아키텍처 ─────────────────────────────────────────
+function renderArch(stage) {
+  header(stage, {
+    title: '서비스 아키텍처',
+    sub: '화면은 플렉스튜디오, 판단과 데이터는 에이전트 서버 한 곳에',
+  }, 'Ⅱ. 솔루션 · 시스템 구성', false);
+
+  const byId = {};
+  const put = (n, x, cy, w) => {
+    const e = node(stage, n, x, w);
+    e.style.top = Math.round(cy - e.offsetHeight / 2) + 'px';
+    byId[n.id] = e;
+    return e;
+  };
+  const R = (id) => rectOf(byId[id]);
+
+  // 에이전트 서버 묶음
+  const G = { l: 760, t: 268, w: 720 };
+  const g = el('div', 'group', '', stage);
+  place(g, G.l, G.t, G.w, 600);
+  el('div', 'gt', withBrands('{vercel}에이전트 서버'), g);
+  el('div', 'gs', 'Vercel 서버리스 · 서울', g);
+  const IX = G.l + 28, IW = G.w - 56;
+
+  const api = node(stage, { id: 'api', kind: 'code', row: 1, icon: 'plug', t: '조회·쓰기 API', b: 'HTTPS · CORS · 서버 키' }, IX, IW);
+  api.style.top = (G.t + 108) + 'px';
+  byId.api = api;
+
+  const PT = R('api').b + 90;
+  place(el('div', 'glabel', '처리 파이프라인', stage), G.l, PT - 42, G.w);
+  const steps = [
+    ['s1', 'code', 'inbox', '받기'], ['s2', 'llm', 'sparkles', '해석'], ['s3', 'code', 'calculator', '판정'],
+    ['s4', 'llm', 'pen-line', '작성'], ['s5', 'parent', 'circle-check', '승인'],
+  ];
+  const sw = 112, sg = (IW - sw * steps.length) / (steps.length - 1);
+  steps.forEach(([id, kind, icon, t], i) => {
+    const e = node(stage, { id, kind, icon, t, mini: 1 }, IX + i * (sw + sg), sw);
+    e.style.top = PT + 'px';
+    byId[id] = e;
+  });
+
+  const out = node(stage, { id: 'out', kind: 'code', row: 1, icon: 'send', t: '내보내기', b: '문자·메일·공유 링크' }, IX, 400);
+  out.style.top = (R('s1').b + 34) + 'px';
+  byId.out = out;
+  g.style.height = (R('out').b + 28 - G.t) + 'px';
+
+  // 왼쪽: 사람·화면·공고, 오른쪽: 데이터와 AI 모델. 이어지는 단계와 같은 높이에 둔다.
+  const apiR = R('api'), s1 = R('s1'), outR = R('out');
+  put({ id: 'parent', kind: 'parent', icon: 'smartphone', t: '부모', b: '휴대폰 브라우저' }, 80, apiR.cy, 220);
+  put({ id: 'app', kind: 'plain', brand: 'flextudio', t: '플렉스튜디오 앱', b: '{react}React 화면' }, 360, apiR.cy, 250);
+  put({ id: 'src', kind: 'ext', row: 1, icon: 'megaphone', t: '지원 공고', b: '공공데이터·구청' }, 360, s1.cy, 280);
+  put({ id: 'org', kind: 'ext', icon: 'building-2', t: '기관', b: '센터·학교·복지관' }, 80, outR.cy, 220);
+  const RX = 1560, RW = 280;
+  put({ id: 'db', kind: 'code', row: 1, brand: 'azuresql', t: 'Azure SQL', b: '테이블 12 · 뷰 10' }, RX, apiR.cy, RW);
+  put({ id: 'llm', kind: 'llm', row: 1, brand: 'openai', t: 'OpenAI', b: '해석·작성만' }, RX, PT - 24, RW);
+  put({ id: 'files', kind: 'code', row: 1, icon: 'folder', t: '파일 저장소', b: '서류·사진 원본' }, RX, outR.cy, RW);
+
+  const parent = R('parent'), app = R('app'), src = R('src'), org = R('org'), gR = G.l + G.w;
+  const db = R('db'), llm = R('llm'), files = R('files');
+
+  stroke(stage, `M${parent.r + 3},${parent.cy} H${app.l - 3}`, { both: 1 });
+  stroke(stage, `M${app.r + 3},${apiR.cy} H${apiR.l - 3}`, { both: 1, color: 'blue' });
+  label(stage, 'API 호출', (app.r + G.l) / 2, apiR.cy - 30);
+  stroke(stage, `M${src.r + 3},${s1.cy} H${s1.l - 3}`);
+  label(stage, '수집', (src.r + G.l) / 2, s1.cy - 30);
+  stroke(stage, `M${outR.l - 3},${outR.cy} H${org.r + 3}`, { color: 'orange' });
+  label(stage, '승인한 것만', (org.r + G.l) / 2, outR.cy - 30);
+
+  stroke(stage, `M${gR + 3},${db.cy} H${db.l - 3}`, { both: 1, color: 'blue' });
+  stroke(stage, `M${gR + 3},${llm.cy} H${llm.l - 3}`, { both: 1 });
+  stroke(stage, `M${gR + 3},${files.cy} H${files.l - 3}`, { both: 1, color: 'blue' });
+
+  for (let i = 1; i <= 4; i++) {
+    const a = R('s' + i), b = R('s' + (i + 1));
+    stroke(stage, `M${a.r + 2},${a.cy} H${b.l - 3}`);
+  }
+  const s5 = R('s5'), turn = s5.b + (outR.t - s5.b) / 2, ox = outR.r - 70;
+  stroke(stage, `M${s5.cx},${s5.b + 2} V${turn - 10} Q${s5.cx},${turn} ${s5.cx - 10},${turn} H${ox + 10} Q${ox},${turn} ${ox},${turn + 10} V${outR.t - 3}`, { color: 'orange' });
+
+  footer(stage, {
+    rules: ['DB에는 <i>서버만</i> 접속', '판단은 <i>코드</i>, 글은 <i>AI</i>', '밖으로는 <i>승인 뒤에만</i>'],
+  });
+}
+
+const ORDER = ['ledger', 'radar', 'resume', 'arch'];
+function renderOne(key) {
+  const frame = el('div', 'frame', '', document.body);
+  const stage = el('div', 'stage', '', frame);
+  stage.dataset.key = key;
+  if (key === 'arch') renderArch(stage); else renderFlow(stage, FLOW[key]);
+  return stage;
+}
+
+// 넘친 글자, 겹친 상자, 화면 밖 상자를 찾아 #report에 적는다(렌더 점검용).
+function check(stage) {
+  const out = [];
+  const key = stage.dataset.key;
+  for (const n of stage.querySelectorAll('.node, .footer, .legend, .title, .subtitle, .group')) {
+    const r = rectOf(n), id = n.dataset.id || n.className;
+    if (r.l < 0 || r.r > 1920 || r.t < 0 || r.b > 1080) out.push(`${key}: out of stage ${id}`);
+    if (n.classList.contains('node') && n.scrollWidth > n.clientWidth + 1) out.push(`${key}: overflow ${id} ${n.scrollWidth}>${n.clientWidth}`);
+    for (const line of n.querySelectorAll('.t, .b, .rules span')) {
+      const rg = document.createRange(); rg.selectNodeContents(line);
+      const lr = rg.getBoundingClientRect(), nr = n.getBoundingClientRect();
+      const pad = n.classList.contains('footer') ? 0 : n.classList.contains('mini') ? 4 : 12;
+      if (lr.right > nr.right - pad + 0.5 || lr.left < nr.left + pad - 0.5) out.push(`${key}: text past edge ${id} "${line.textContent}"`);
+    }
+  }
+  const boxes = [...stage.querySelectorAll('.node, .footer')].map((n) => [n, rectOf(n)]);
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const [na, a] = boxes[i], [nb, b] = boxes[j];
+    if (a.l < b.r + 8 && b.l < a.r + 8 && a.t < b.b + 8 && b.t < a.b + 8) out.push(`${key}: too close ${na.dataset.id || na.className} × ${nb.dataset.id || nb.className}`);
+  }
+  for (const l of stage.querySelectorAll('.elabel')) {
+    const lr = rectOf(l);
+    const L = { l: lr.l - lr.w / 2, r: lr.l + lr.w / 2, t: lr.t - lr.h / 2, b: lr.t + lr.h / 2 };
+    for (const [n, b] of boxes) if (L.l < b.r && b.l < L.r && L.t < b.b && b.t < L.b) out.push(`${key}: label "${l.textContent}" hits ${n.dataset.id || n.className}`);
+  }
+  const lg = rectOf(stage.querySelector('.legend'));
+  for (const sel of ['.subtitle', '.title']) {
+    const r = rectOf(stage.querySelector(sel));
+    if (r.r > lg.l - 24 && r.t < lg.b) out.push(`${key}: ${sel} hits legend (${r.r} vs ${lg.l})`);
+  }
+  return out;
+}
+
+function main() {
+  const key = new URLSearchParams(location.search).get('d');
+  const keys = key ? [key] : ORDER;
+  if (!key) document.body.classList.add('all');
+  const issues = [];
+  for (const k of keys) issues.push(...check(renderOne(k)));
+  document.getElementById('report').textContent = issues.length ? issues.join('\n') : 'OK';
+  if (!key) {
+    const fit = () => document.querySelectorAll('.frame').forEach((f) => {
+      const s = Math.min(1, (innerWidth - 32) / 1920);
+      f.style.transform = `scale(${s})`;
+      f.style.margin = `0 0 ${24 - 1080 * (1 - s)}px ${(innerWidth - 1920 * s) / 2}px`;
+    });
+    fit();
+    addEventListener('resize', fit);
+  }
+}
+document.fonts.ready.then(main);
+</script>
+</body>
+</html>

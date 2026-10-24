@@ -41,7 +41,7 @@ MVP가 증명할 것은 둘입니다. 바우처 이용 내역이 연동되면 �
 
 ```mermaid
 flowchart LR
-    APP["플렉스튜디오 앱<br/>홈·넘기기·승인함 등 13개<br/>조회·입력·승인 모두 서버 API<br/><i>고정 IP 3.38.20.130에서 호출</i>"]
+    APP["플렉스튜디오 앱<br/>홈·넘기기·승인함 등 13개<br/>조회·입력·승인 모두 서버 API<br/><i>이벤트 스크립트 fetch, 사용자 기기의 브라우저에서 호출</i>"]
     subgraph SERVER["에이전트 서버"]
         GW["API<br/>화면 조회·넘기기·승인·장면 실행"]
         PIPE["처리 파이프라인<br/>수집·해석(LLM) → 반영 → 대조·판정 → 작성(LLM) → 승인 대기"]
@@ -52,7 +52,7 @@ flowchart LR
     LLM["LLM API<br/>해석과 글쓰기만<br/>계산은 하지 않음"]
     DB["Azure SQL<br/>테이블 12개, 화면별 뷰<br/>서류·사진은 서버 파일 저장소, DB엔 경로만"]
     ORG["기관(센터·학교·복지관)<br/>앱 설치 없이 접수·열람"]
-    APP -- "조회·입력·승인(API 연동)" --> GW
+    APP -- "조회·입력·승인(스크립트 fetch)" --> GW
     GW -- "화면별 행 목록·run id" --> APP
     SRC -- "공고 수집" --> PIPE
     PIPE <-- "해석·작성" --> LLM
@@ -60,7 +60,7 @@ flowchart LR
     OUT -- "승인한 것만 제출·공유" --> ORG
 ```
 
-플렉스튜디오는 DB에 직접 붙지 않습니다. 외부 DB 연동과 FlexSQL은 Business 플랜 이상이라 쓸 수 없고, 화면 스크립트에 DB 접속 정보를 넣을 수도 없기 때문입니다. 화면 데이터는 서버가 화면별 뷰를 읽어 평평한 행 목록으로 돌려주고, 테이블에 쓰는 일도 모두 서버 API를 거칩니다. 계산과 판단, DB 접속을 서버 한 곳에 모읍니다. 공고는 공공데이터 API를 먼저 쓰고 공개 게시판 수집은 보조로 쓰며, 기관에는 부모가 승인한 신청서와 문서만 나갑니다.
+플렉스튜디오는 DB에 직접 붙지 않습니다. 외부 DB 연동과 FlexSQL은 Business 플랜 이상이라 쓸 수 없고, 화면 스크립트에 DB 접속 정보를 넣을 수도 없기 때문입니다. 화면 데이터는 서버가 화면별 뷰를 읽어 평평한 행 목록으로 돌려주면 화면이 이벤트 스크립트의 fetch로 받아 카테고리에 넣고, 테이블에 쓰는 일도 모두 서버 API를 거칩니다. 호출은 사용자 기기의 브라우저에서 나가므로 서버는 CORS와 서버 키로 받습니다([연동 계획](이음-연동-계획.md#보안)). 계산과 판단, DB 접속을 서버 한 곳에 모읍니다. 공고는 공공데이터 API를 먼저 쓰고 공개 게시판 수집은 보조로 쓰며, 기관에는 부모가 승인한 신청서와 문서만 나갑니다.
 
 ## 화면 명세
 
@@ -90,12 +90,12 @@ flowchart LR
 
 | 제약 | 설계 결정 |
 | --- | --- |
-| 외부 DB 연동과 FlexSQL은 Business 플랜 이상이라 지금 플랜에서는 쓸 수 없음 | Azure SQL에는 에이전트 서버만 접속. 화면 데이터는 [API 연동](https://docs.flextudio.com/flextudio/workspace/interface/data/api.md) 모듈로 서버의 조회 API(GET /views/{뷰})를 불러 받음 |
-| API 연동은 ParamBlocks로 보내고 Result를 2차원 배열로 받음. 객체 배열 응답은 이중 배열로 자동 변환됨 | 화면마다 평평한 행을 돌려주는 뷰를 두고, 서버는 뷰의 행을 객체 배열 그대로 돌려줌. 컬럼 이름을 컬렉션 키와 맞추고, 중첩 JSON은 쓰지 않음. 어긋나면 Result Convert Script로 맞춤 |
+| 외부 DB 연동과 FlexSQL은 Business 플랜 이상이라 지금 플랜에서는 쓸 수 없음 | Azure SQL에는 에이전트 서버만 접속. 화면 데이터는 이벤트 스크립트의 fetch로 서버의 조회 API(GET /views/{뷰})를 불러 받음 |
+| [API 연동](https://docs.flextudio.com/flextudio/workspace/interface/data/api.md) 모듈은 만들고 배포할 수 있지만, 편집기 TEST CALL이 기본 샘플까지 500 오류를 내고 이벤트 API 액션에 받는 카테고리 칸이 나오지 않음(10/25 시험) | 기본은 이벤트 스크립트 fetch. 응답 객체 배열을 `f.Collection.addSector`로 카테고리에 넣으면 키 이름 그대로 들어감(10/25 시험에서 동작). 화면마다 평평한 행을 돌려주는 뷰를 두고, 컬럼 이름을 카테고리 키와 맞추고, 중첩 JSON은 쓰지 않음. 모듈은 막힌 원인이 풀리면 다시 검토 |
 | 자동 새로고침과 타이머가 없음 | 넘기기·승인·장면 실행 이벤트 뒤에 해당 화면의 조회 API를 이어서 부름 |
-| API 응답 시간 제한이 문서에 없음 | LLM 처리가 길면 run id를 먼저 돌려주고 '결과 보기' 버튼으로 조회. LLM 호출마다 시간 제한을 두고 넘기면 미리 만든 대체 결과를 씀. 시연 전에 응답 시간을 재봄 |
-| 호출은 고정 IP(3.38.20.130)에서 옴 | 에이전트 서버에서 이 IP를 허용하고, 서버 키는 Secret Key로 보관. Azure SQL 방화벽에는 에이전트 서버의 IP만 열어 둠 |
-| 이벤트 스크립트는 Javascript지만, 스크립트 안에서 fetch로 외부 서버를 부를 수 있는지는 문서에 없음 | API 연동 모듈을 기본으로 씀. 모듈을 못 쓰게 되면 스크립트 fetch를 시험하고, 그때는 호출이 브라우저에서 나가므로 서버에 CORS를 허용 |
+| fetch는 브라우저가 응답을 기다리므로, LLM 처리가 길면 화면이 멈춘 것처럼 보임 | LLM 처리가 길면 run id를 먼저 돌려주고 '결과 보기' 버튼으로 조회. LLM 호출마다 시간 제한을 두고 넘기면 미리 만든 대체 결과를 씀. 시연 전에 응답 시간을 재봄 |
+| 호출이 사용자 기기의 브라우저에서 나감(`Origin: https://scenario.flextudio.com`, 10/25 확인). 스크립트에 적은 서버 키도 그대로 보임 | 서버는 IP 허용 대신 CORS를 열고 OPTIONS 사전 요청에 응답. 서버 키는 가벼운 차단으로만 보고 요청 수 제한을 함께 둠. Azure SQL 방화벽에는 에이전트 서버의 IP만 열어 둠 |
+| Embed와 Image는 브라우저가 주소를 직접 열어 헤더를 붙일 수 없음 | 신청서·문서 미리보기와 서류 사진은 키 없이 열리는 공개 링크(`/outputs/{token}`, `/files/{token}`)로 두고, 추측할 수 없는 토큰으로만 엶 |
 | [FileUpload](https://docs.flextudio.com/flextudio/scenario/component/control/fileupload.md)는 플렉스튜디오 파일 시스템에 저장하고 FileKey를 줌. 외부 API로 넘기는 방법은 문서에 없음 | 파일을 서버로 넘길 수 있는지 먼저 시험. 안 되면 서버에 미리 올린 서류 이미지를 고르는 방식으로 대체 |
 | 마이크 API가 없고, Embed에는 script를 넣을 수 없음 | 부모 한마디는 글자 입력, 문서 미리보기는 script 없는 HTML |
 | Approval 컨트롤은 결재선 UI | 승인함은 컨렉션 반복과 버튼으로 직접 구성 |
@@ -109,21 +109,22 @@ flowchart LR
 | 갈래 | 시작 인원 | 맡는 일 |
 | --- | --- | --- |
 | 에이전트 서버 | 2명 | API(넘기기·승인·장면 실행), 계산 모듈(대조·잔액·마감·대상 판정), 공고 수집기, LLM 분류·문서 작성, 조회 API, Azure SQL 테이블·뷰·시드 데이터 |
-| 플렉스튜디오 화면 | 2명 | 화면 13개, API 연동(조회·넘기기·승인), 시연 제어 |
+| 플렉스튜디오 화면 | 2명 | 화면 13개, 스크립트 fetch로 서버 연동(조회·넘기기·승인), 시연 제어 |
 | 시나리오·발표 | 1명 | 가상 데이터와 장면 입력, 시범 지역 공고 5건 정리, 문서 예시, 발표 자료, 리허설 진행 |
 
-1. **뼈대 확정:** 장면 입력과 가상 데이터, 테이블·뷰와 API 형식을 정합니다. 시범 지역 한 곳을 고르고 공고를 어떤 경로로 가져올지 정하고, API 연동 모듈로 서버의 조회 API를 불러 컬렉션에 넣을 수 있는지와 FileUpload로 서버에 파일을 넘길 수 있는지도 이 단계에서 시험합니다.
+1. **뼈대 확정:** 장면 입력과 가상 데이터, 테이블·뷰와 API 형식을 정합니다. 시범 지역 한 곳을 고르고 공고를 어떤 경로로 가져올지 정하고, 스크립트 fetch로 받은 행이 반복 영역에 목록으로 뜨는지와 FileUpload로 서버에 파일을 넘길 수 있는지도 이 단계에서 시험합니다.
 2. **병렬 구현:** 서버는 계산 모듈과 API를, 화면은 홈·넘기기·승인함·지원 레이더부터 만듭니다. 서버는 시드 데이터를 넣은 뷰와 조회 API를 먼저 열고, 화면은 그 API에 붙여 연결합니다.
 3. **에이전트 연결:** LLM 분류·추출, 대상 판정, 신청서와 문서 작성을 붙이고, 장면 1·2를 처음부터 끝까지 돌립니다. 장면 3은 그 뒤에 붙입니다.
 4. **리허설:** 실제 휴대폰으로 장면을 반복하며 LLM 대체 결과 파일을 만들고, 응답 시간과 문구를 다듬고, 발표 자료를 맞춥니다.
 
 ## 확인할 것
 
-구현을 막을 수 있는 것은 앞의 네 개이고, 나머지는 시연 문구와 발표 근거의 정확도에 관한 것입니다.
+구현을 막을 수 있는 것은 앞의 다섯 개이고, 나머지는 시연 문구와 발표 근거의 정확도에 관한 것입니다.
 
-- [ ] 지금 플랜에서 API 연동 모듈을 쓸 수 있는지, 응답 객체 배열이 컬렉션에 그대로 들어가는지(안 되면 이벤트 스크립트 fetch 시험)
+- [x] 화면에서 서버 API를 부르는 방법: API 연동 모듈은 막혀 있고(TEST CALL 500 오류, 받는 카테고리 칸 없음), 이벤트 스크립트 fetch로 받은 객체 배열은 카테고리에 그대로 들어감(10/25 시험)
+- [ ] 배포한 앱의 Origin(서버 CORS 허용 목록에 넣을 주소)
 - [ ] FileUpload로 올린 파일을 에이전트 서버가 받을 수 있는지(FileKey로 내려받기 등)
-- [ ] 플렉스튜디오 API 호출이 응답을 얼마나 기다리는지 실측
+- [ ] 넘기기·승인의 응답 시간 실측(run id로 돌릴 기준)
 - [ ] 시범 지역 공고를 공공데이터 API로 받을 수 있는 범위와, 구청·복지관 게시판의 이용 조건
 - [ ] 바우처 이용 내역을 부모가 어느 화면에서 보는지, 결제 때 문자가 오는지(장면 1 입력 형식)
 - [ ] 지원사업·프로그램의 접수 방식(이메일·온라인·방문) 비율. 대신 낼 수 있는 범위가 여기서 정해집니다
@@ -138,7 +139,7 @@ Azure SQL 테이블은 시연용 12개와 장면 3용 4개(후순위)이고, 데
 
 Azure SQL Database를 기준으로 아래처럼 정합니다.
 
-- **id:** int IDENTITY 기본 키. share\_token만 uniqueidentifier(NEWID())로 두어 추측할 수 없게 합니다.
+- **id:** int IDENTITY 기본 키. 키 없이 여는 공개 링크에 쓰는 preview\_token, file\_token, share\_token만 uniqueidentifier(NEWID())로 두어 추측할 수 없게 합니다.
 - **글자:** 한글이 들어가므로 모두 nvarchar로 둡니다. raw\_text, quote, text, draft\_text, body\_html은 nvarchar(max)입니다.
 - **json 컬럼:** target\_rule, required\_docs, reasons, form\_draft, checklist, refs, fields, steps는 nvarchar(max)에 ISJSON 체크 제약을 걸고, 조회는 서버 코드나 OPENJSON으로 합니다.
 - **상태·종류 값:** 괄호 안의 값만 들어가도록 nvarchar 컬럼에 CHECK 제약을 겁니다.
@@ -158,9 +159,9 @@ Azure SQL Database를 기준으로 아래처럼 정합니다.
 | session | 장부 | 회기 하나하나 | id, organization\_id, therapy, therapist, date, start\_time, minutes, unit\_price, funding(바우처·교육청·자부담), status(예정·출석·결석·취소·보강), inbox\_item\_id |
 | voucher\_month | 장부 | 월별 바우처 | id, child\_id, program\_name, month, limit\_amount, self\_pay, used\_amount, balance, days\_left(뒤의 셋은 서버 계산) |
 | usage | 장부 | 바우처 이용 내역 | id, organization\_id, session\_id, used\_at, amount, source(연동·캡처), inbox\_item\_id, match(일치·확인 필요·미확인) |
-| document | 장부 | 서류함 | id, child\_id, doc\_type, issued\_on, valid\_until, file\_ref, fields(json) |
+| document | 장부 | 서류함 | id, child\_id, doc\_type, issued\_on, valid\_until, file\_ref, file\_token, fields(json) |
 | program\_match | 결과 | 공고별 대상 판정 | id, program\_id, child\_id, eligible(해당·해당 가능·비해당), reasons(json), status(새 알림·관심·신청·숨김) |
-| application | 결과 | 신청 진행 | id, program\_id, child\_id, form\_draft(json), checklist(json), status(준비·승인 대기·제출·접수·보완 요청·선정·미선정), submitted\_at, result\_on |
+| application | 결과 | 신청 진행 | id, program\_id, child\_id, form\_draft(json), checklist(json), status(준비·승인 대기·제출·접수·보완 요청·선정·미선정), submitted\_at, result\_on, preview\_token |
 | approval | 결과 | 승인함 | id, child\_id, kind(확인 요청·보강 요청·신청 제출·문서 공유), title, draft\_text, refs(json), status(대기·승인·고쳐서 승인·보류·보냄), decided\_at |
 | agent\_run | 결과 | 에이전트 실행 기록과 카운터 | id, trigger, input\_ids, steps(json), manual\_steps, approvals, status, started\_at, finished\_at |
 
@@ -187,9 +188,9 @@ inbox\_item.event\_type은 일정 변경, 결석, 이용 내역, 보강, 공지,
 | v\_usage | 바우처 장부 | 이용 내역, 대조 결과, 같은 날 센터 문자 |
 | v\_radar | 지원 레이더 | 지원 카드(판정, 이유, 마감, 원문 링크) |
 | v\_deadline | 지원 레이더 | 마감 하나(서류 유효기간, 신청 마감, 결과 발표일). document·program·application의 날짜를 UNION으로 모음 |
-| v\_application | 신청 진행 | 신청 상태, 결과 발표일, 신청서 미리보기 주소(1행) |
+| v\_application | 신청 진행 | 신청 상태, 결과 발표일, 신청서 미리보기 주소 /outputs/{preview\_token}(1행) |
 | v\_checklist | 신청 진행 | 필요한 서류 하나(있음·없음·만료, 서류함 id) |
-| v\_document | 서류함 | 서류(종류, 발급일, 유효기간, 사진 경로) |
+| v\_document | 서류함 | 서류(종류, 발급일, 유효기간, 사진 주소 /files/{file\_token}) |
 | v\_approval | 승인함 | 승인 대기 항목(원문과 초안) |
 | v\_record | 아이 이력서 | 기관별 목표·기록·처음 해낸 날(후순위) |
 
@@ -241,7 +242,7 @@ inbox\_item.event\_type은 일정 변경, 결석, 이용 내역, 보강, 공지,
 
 ## API
 
-플렉스튜디오가 API 연동 모듈로 부르는 서버 API입니다. 조회는 [화면별 뷰](#화면별-뷰)를 읽는 GET /views/{뷰} 하나로 모으고, 나머지는 쓰기와 서버가 만드는 HTML입니다. 응답은 모두 평평한 행 목록(객체 배열)이고, 플렉스튜디오는 쓰기 API 호출이 끝나면 같은 이벤트에서 해당 화면의 조회 API를 다시 부릅니다.
+플렉스튜디오가 이벤트 스크립트의 fetch로 부르는 서버 API입니다. 조회는 [화면별 뷰](#화면별-뷰)를 읽는 GET /views/{뷰} 하나로 모으고, 나머지는 쓰기와 서버가 만드는 HTML·파일입니다. 응답은 모두 평평한 행 목록(객체 배열)이고, 플렉스튜디오는 쓰기 API 호출이 끝나면 같은 스크립트에서 해당 화면의 조회 API를 다시 부릅니다. 호출 형태와 CORS·서버 키·요청 수 제한은 [연동 계획](이음-연동-계획.md#연동-방식)을 따릅니다. 공개 링크(/outputs, /files, /share)는 Embed·Image가 브라우저에서 직접 열기 때문에 서버 키를 검사하지 않고 토큰으로만 엽니다.
 
 | 메서드·경로 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- |
@@ -249,8 +250,9 @@ inbox\_item.event\_type은 일정 변경, 결석, 이용 내역, 보강, 공지,
 | POST /profile | 아이 프로필 등록·수정, 대상 판정 다시 실행 | 프로필 1행 |
 | POST /inbox | 문자·사진·파일·한마디 넘기기 | run\_id |
 | POST /approvals/{id} | 승인·고쳐서 승인·보류, 승인된 것 제출·발송 | 승인 1행(상태) |
-| GET /outputs/{id} | 신청서(application.form\_draft로 그림)와 생성 문서(장면 3) | script 없는 HTML(Embed용) |
-| GET /share/{token} | 기관용 읽기 전용 페이지(장면 3, output\_doc.share\_token) | HTML |
+| GET /outputs/{token} | 신청서(application.preview\_token, form\_draft로 그림)와 생성 문서(장면 3). 공개 링크 | script 없는 HTML(Embed용) |
+| GET /files/{token} | 서류 사진(document.file\_token). 공개 링크 | 이미지(Image용) |
+| GET /share/{token} | 기관용 읽기 전용 페이지(장면 3, output\_doc.share\_token). 공개 링크 | HTML |
 | GET /runs/{id} | 오래 걸린 실행의 결과 | 상태와 단계 |
 | POST /demo/scene/{n}, POST /demo/collect, POST /demo/reset | 시연 장면 넣기, 공고 수집 실행, 초기화 | run\_id |
 
@@ -285,7 +287,7 @@ inbox\_item.event\_type은 일정 변경, 결석, 이용 내역, 보강, 공지,
 해석과 작성의 LLM 호출은 모두 한 번 호출이고, 시연이 LLM 응답 때문에 멈추지 않도록 대체 결과를 준비해 둡니다.
 
 - **미리 만들기:** 시연 입력이 고정이므로, 리허설 때 호출마다 입력과 결과를 서버의 대체 결과 파일(작업 종류와 입력 해시로 찾음)에 저장해 둡니다.
-- **시연 때:** 실제로 LLM을 부르고, 시간 제한(초기값 8초, 플렉스튜디오 응답 대기 실측 뒤 조정)을 넘기거나 오류가 나거나 형식·검사를 통과하지 못하면 같은 입력의 대체 결과를 씁니다.
+- **시연 때:** 실제로 LLM을 부르고, 시간 제한(초기값 8초, 넘기기·승인 응답 시간 실측 뒤 조정)을 넘기거나 오류가 나거나 형식·검사를 통과하지 못하면 같은 입력의 대체 결과를 씁니다.
 - **기록:** 실제 호출 결과를 썼는지 대체 결과를 썼는지 agent\_run.steps에 남기고, 리허설 때 대체 비율을 확인합니다.
 - **입력 고정:** 시연 중 문구를 바꾸면 입력 해시가 달라져 대체 결과가 없으므로, 시연 입력은 시연 제어 버튼으로만 넣습니다.
 

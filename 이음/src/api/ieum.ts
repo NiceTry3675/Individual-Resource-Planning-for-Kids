@@ -1,5 +1,6 @@
 import { addDays, addMinutes, ageOn, diffDays, koDate, monthDay, shortDay, startOfWeek, weekdayIndex } from './dates';
 import * as seed from '../mocks/ieum';
+import * as server from './server';
 import type {
   Approval, ApprovalKind, ApplicationData, ApplicationStatus, ChecklistRow, Counter, DeadlineKind, DeadlineRow,
   DemoData, DocumentRow, HomeCard, HomeData, InboxItem, Note, OrgId, OutputDoc, ProfileView, Profile, ProgramRow,
@@ -39,10 +40,13 @@ const nextId = (prefix: string) => `${prefix}-${++seq}`;
 const fmt = (v: number) => v.toLocaleString('ko-KR');
 const orgName = (id: OrgId) => seed.organizations.find((o) => o.id === id)?.name ?? id;
 
+// 시연을 시작할 때의 프로필·서류함. 서버가 있으면 DB 값으로 바뀐다(아래 hydrated).
+let base: { profile: Profile; documents: DocState[] } = { profile: seed.profile, documents: seed.documents };
+
 const initialState = (): State => {
-  const diag = seed.documents.find((d) => d.id === 'doc-diag');
+  const diag = base.documents.find((d) => d.docType === '진단서');
   return {
-    profile: structuredClone(seed.profile),
+    profile: structuredClone(base.profile),
     scenes: { 1: false, 2: false, 3: false },
     directDone: false,
     inbox: [],
@@ -50,14 +54,14 @@ const initialState = (): State => {
     offers: [],
     usage: [],
     notes: structuredClone(seed.notes),
-    documents: structuredClone(seed.documents),
+    documents: structuredClone(base.documents),
     deadlines: structuredClone(seed.deadlines),
     approvals: [],
     cards: diag?.validUntil
       ? [{
           id: 'card-diag', tone: 'warning', title: '진단서 유효기간이 곧 끝나요',
           body: `서류함의 진단서가 ${koDate(diag.validUntil)}까지 유효해요. 새로 발급이 필요한지 확인해 주세요.`,
-          refIds: ['doc:doc-diag'], actionLabel: '서류함 보기', to: '/documents', dueOn: diag.validUntil,
+          refIds: [`doc:${diag.id}`], actionLabel: '서류함 보기', to: '/documents', dueOn: diag.validUntil,
         }]
       : [],
     application: null,
@@ -82,7 +86,42 @@ const commit = () => {
   version += 1;
   listeners.forEach((fn) => fn());
 };
-const wait = (ms = 200) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// 서버가 있으면 프로필과 서류함은 DB(Azure SQL)에서 시작한다. 가져오지 못하면 목업 값으로 시작한다.
+const hydrated: Promise<void> = server.remote
+  ? Promise.all([server.fetchProfile(), server.fetchDocuments()])
+      .then(([profile, documents]) => {
+        base = { profile, documents };
+        state = initialState();
+        commit();
+      })
+      .catch((err) => console.warn('[ieum] 서버에서 시작 데이터를 가져오지 못해 목업으로 시작해요', err))
+  : Promise.resolve();
+
+const wait = async (ms = 200) => {
+  await hydrated;
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+};
+
+/** 서버가 해석한 문자 한 건을 넘기기 목록의 결과 문장으로 바꾼다. */
+function interpretedResult(r: server.Interpreted): string {
+  if (!r.type) return '정리했어요';
+  const parts = [r.date ? shortDay(r.date) : null, r.organization, r.time, r.amount !== null ? `${fmt(r.amount)}원` : null].filter(Boolean);
+  const head = `${r.source === 'fallback' ? '규칙 기반 정리' : 'AI 해석'} · ${r.type}${parts.length ? ` → ${parts.join(' ')}` : ''}`;
+  return r.quote ? `${head} · 근거 “${r.quote}”` : head;
+}
+
+/** 문자들을 서버에 넘겨 해석까지 받아 온다. 서버가 없거나 실패하면 null. */
+async function interpretOnServer(texts: string[]): Promise<server.Interpreted[] | null> {
+  if (!server.remote || texts.length === 0) return null;
+  try {
+    const { runId } = await server.postInbox(texts);
+    return (await server.fetchRun(runId)).items;
+  } catch (err) {
+    console.warn('[ieum] 서버 해석에 실패해 준비된 결과를 써요', err);
+    return null;
+  }
+}
 
 // ---------- 근거 ----------
 const noteLabel = (note: Note) =>
@@ -520,7 +559,16 @@ export async function getProfile(): Promise<ProfileView> {
 
 export async function saveProfile(p: Profile): Promise<ProfileView> {
   await wait(250);
-  state.profile = structuredClone(p);
+  let saved = p;
+  if (server.remote) {
+    try {
+      saved = await server.storeProfile(p);
+      base = { ...base, profile: saved };
+    } catch (err) {
+      console.warn('[ieum] 프로필을 서버에 저장하지 못해 이 화면에만 반영해요', err);
+    }
+  }
+  state.profile = structuredClone(saved);
   commit();
   return profileView();
 }
@@ -533,12 +581,23 @@ export async function getInbox(): Promise<InboxItem[]> {
 
 export async function submitInbox(input: { texts: string; fileNames: string[]; note: string }): Promise<{ runId: string; items: number; pending: number; firsts: number }> {
   await wait(300);
-  const runId = nextId('run');
+  const texts = input.texts.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+  // 서버가 있으면 문자는 서버에 접수하고(해석은 결과 보기에서), 실패하면 이 화면에서만 접수한다.
+  let accepted: { runId: string; items: { id: string; rawText: string }[] } | null = null;
+  if (server.remote && texts.length) {
+    try {
+      accepted = await server.postInbox(texts);
+    } catch (err) {
+      console.warn('[ieum] 서버에 접수하지 못해 이 화면에서만 접수해요', err);
+    }
+  }
+  const runId = accepted ? `srv-${accepted.runId}` : nextId('run');
   const items: InboxItem[] = [];
   const stamp = `${TODAY} 오늘`;
   const waiting = '접수했어요 · 결과 보기를 눌러 정리 결과를 확인해요';
-  input.texts.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean).forEach((text) => {
-    items.push({ id: nextId('in'), kind: 'text', label: '붙여넣은 문자', rawText: text, receivedAt: stamp, result: waiting, runId, pending: true });
+  texts.forEach((text, i) => {
+    const id = accepted ? `in-srv-${accepted.items[i].id}` : nextId('in');
+    items.push({ id, kind: 'text', label: '붙여넣은 문자', rawText: text, receivedAt: stamp, result: waiting, runId, pending: true });
   });
   input.fileNames.forEach((name) => {
     const isImage = /\.(png|jpe?g|gif|webp|heic)$/i.test(name);
@@ -562,6 +621,22 @@ export async function submitInbox(input: { texts: string; fileNames: string[]; n
 export async function getRun(runId: string): Promise<RunResult> {
   await wait(400);
   let processed = 0;
+  if (runId.startsWith('srv-') && server.remote) {
+    try {
+      const run = await server.fetchRun(runId.slice(4));
+      run.items.forEach((r) => {
+        const item = state.inbox.find((i) => i.id === `in-srv-${r.id}`);
+        if (item && item.pending) {
+          item.pending = false;
+          item.result = interpretedResult(r);
+          processed += 1;
+        }
+      });
+    } catch (err) {
+      console.warn('[ieum] 서버에서 해석 결과를 가져오지 못했어요', err);
+      throw err;
+    }
+  }
   state.inbox.forEach((item) => {
     if (item.runId === runId && item.pending) {
       item.pending = false;
@@ -611,9 +686,13 @@ export async function getHome(): Promise<HomeData> {
 }
 
 // ---------- 시연 ----------
-function applyScene1() {
+// interpreted: 서버가 문자 12개를 해석한 결과(문자 순서대로). 없으면 준비된 결과 문장을 쓴다.
+function applyScene1(interpreted: server.Interpreted[] | null) {
   state.inbox.unshift(
-    ...seed.scene1Messages.map((m) => ({ id: m.id, kind: 'text' as const, label: `${orgName(m.orgId)} 문자`, rawText: m.text, receivedAt: `${TODAY} 밤`, result: m.result })),
+    ...seed.scene1Messages.map((m, i) => ({
+      id: m.id, kind: 'text' as const, label: `${orgName(m.orgId)} 문자`, rawText: m.text, receivedAt: `${TODAY} 밤`,
+      result: interpreted?.[i] ? interpretedResult(interpreted[i]) : m.result,
+    })),
     { id: seed.scene1Photo.id, kind: 'photo', label: seed.scene1Photo.label, rawText: seed.scene1Photo.rawText, receivedAt: `${TODAY} 밤`, result: seed.scene1Photo.result },
   );
   state.overrides.push(...structuredClone(seed.scene1Overrides));
@@ -714,7 +793,7 @@ function applyScene3() {
 export async function runScene(n: SceneNo): Promise<HomeData> {
   await wait(500);
   if (!state.scenes[n]) {
-    if (n === 1) applyScene1();
+    if (n === 1) applyScene1(await interpretOnServer(seed.scene1Messages.map((m) => m.text)));
     if (n === 2) applyScene2();
     if (n === 3) applyScene3();
     state.scenes[n] = true;

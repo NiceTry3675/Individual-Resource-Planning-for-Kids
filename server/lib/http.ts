@@ -2,15 +2,24 @@ import { timingSafeEqual } from 'crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // 호출은 사용자 기기의 브라우저에서 오므로 IP가 아니라 Origin과 서버 키로 받는다(연동 계획 '보안').
+// 'https://*.flextudio.com'처럼 하위 도메인 와일드카드를 쓸 수 있다(아티팩트 iframe의 Origin이 앱마다 다름).
 const allowedOrigins = (process.env.CORS_ORIGINS ?? 'https://scenario.flextudio.com')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function originAllowed(origin: string): boolean {
+  return allowedOrigins.some((allowed) => {
+    if (!allowed.includes('*.')) return allowed === origin;
+    const [scheme, host] = allowed.split('*.');
+    return origin.startsWith(scheme) && origin.endsWith(`.${host}`) && !origin.slice(scheme.length).includes('/');
+  });
+}
+
 function applyCors(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin;
   res.setHeader('Vary', 'Origin');
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && originAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'X-Api-Key, Content-Type');

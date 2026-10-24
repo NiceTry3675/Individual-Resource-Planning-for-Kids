@@ -6,6 +6,10 @@
   },
   "rewrites": [
     { "source": "/views/:view", "destination": "/api/views/:view" },
+    { "source": "/runs/:id", "destination": "/api/runs/:id" },
+    { "source": "/inbox", "destination": "/api/inbox" },
+    { "source": "/profile", "destination": "/api/profile" },
+    { "source": "/documents", "destination": "/api/documents" },
     { "source": "/health", "destination": "/api/health" }
   ]
 }

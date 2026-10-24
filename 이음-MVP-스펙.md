@@ -35,32 +35,33 @@ MVP가 증명할 것은 둘입니다. 바우처 이용 내역이 연동되면 �
 
 ## 시스템 구성
 
-플렉스튜디오는 화면과 입력만 맡고, 공고 수집·해석·계산·문서와 신청서 작성은 에이전트 서버가, 상태 저장은 Supabase가 맡습니다.
+플렉스튜디오는 화면과 입력을 맡고, 화면에 띄울 데이터는 FlexSQL로 Azure SQL에서 바로 읽습니다. 공고 수집·해석·계산·문서와 신청서 작성, 그리고 DB에 쓰는 일은 에이전트 서버가 맡습니다.
 
-**플렉스튜디오는 화면만, 판단과 저장은 에이전트 서버가 맡습니다**
+**조회는 FlexSQL로 바로, 판단과 쓰기는 에이전트 서버가 맡습니다**
 
 ```mermaid
 flowchart LR
-    APP["플렉스튜디오 앱<br/>홈·넘기기·승인함 등 13개<br/>프로필, 입력, 승인만 받음<br/><i>고정 IP 3.38.20.130에서 호출<br/>DB에는 직접 붙지 않음(PostgreSQL 미지원)</i>"]
+    APP["플렉스튜디오 앱<br/>홈·넘기기·승인함 등 13개<br/>조회는 FlexSQL, 입력·승인은 서버 API<br/><i>고정 IP 3.38.20.130에서 호출</i>"]
     subgraph SERVER["에이전트 서버"]
-        GW["API 게이트웨이<br/>평평한 행 목록으로 응답"]
+        GW["API<br/>넘기기·승인·장면 실행"]
         PIPE["처리 파이프라인<br/>수집·해석(LLM) → 반영 → 대조·판정 → 작성(LLM) → 승인 대기"]
         OUT["제출·공유<br/>신청서 제출, /share 링크"]
         GW --> PIPE --> OUT
     end
     SRC["공고 출처<br/>공공데이터 API,<br/>구청·복지관 공고"]
     LLM["LLM API<br/>해석과 글쓰기만<br/>계산은 하지 않음"]
-    DB["Supabase<br/>테이블 19개(Postgres)<br/>서류·사진(Storage)"]
+    DB["Azure SQL<br/>테이블 12개, 화면별 뷰<br/>서류·사진은 서버 파일 저장소, DB엔 경로만"]
     ORG["기관(센터·학교·복지관)<br/>앱 설치 없이 접수·열람"]
-    APP -- "요청" --> GW
-    GW -- "응답" --> APP
+    APP -- "입력·승인(API)" --> GW
+    GW -- "run id·처리 결과" --> APP
+    APP -- "화면별 뷰 조회(FlexSQL)" --> DB
     SRC -- "공고 수집" --> PIPE
     PIPE <-- "해석·작성" --> LLM
     SERVER <-- "읽기·쓰기" --> DB
     OUT -- "승인한 것만 제출·공유" --> ORG
 ```
 
-플렉스튜디오는 Supabase에 직접 붙지 않고 서버 API만 부릅니다. 공고는 공공데이터 API를 먼저 쓰고 공개 게시판 수집은 보조로 쓰며, 기관에는 부모가 승인한 신청서와 문서만 나갑니다.
+플렉스튜디오는 화면별 뷰를 FlexSQL로 조회만 하고, 테이블에 쓰는 일은 모두 서버 API를 거칩니다. 계산과 판단을 서버 한 곳에 모으고, 화면 쪽 SQL은 SELECT만 남기기 위해서입니다. 공고는 공공데이터 API를 먼저 쓰고 공개 게시판 수집은 보조로 쓰며, 기관에는 부모가 승인한 신청서와 문서만 나갑니다.
 
 ## 화면 명세
 
@@ -86,15 +87,16 @@ flowchart LR
 
 ## 플렉스튜디오 제약과 대응
 
-플렉스튜디오는 화면과 입력만 맡고, 판단과 저장은 모두 에이전트 서버로 보냅니다. 아래 제약은 [플렉스튜디오 문서](https://docs.flextudio.com/flextudio)에서 확인한 것입니다.
+플렉스튜디오는 화면과 입력, FlexSQL 조회만 맡고, 판단과 쓰기는 모두 에이전트 서버로 보냅니다. 아래 제약은 [플렉스튜디오 문서](https://docs.flextudio.com/flextudio)에서 확인한 것입니다.
 
 | 제약 | 설계 결정 |
 | --- | --- |
-| 외부 DB 연결은 MySQL·MSSQL·Oracle만 되고 PostgreSQL은 안 됨 | 플렉스튜디오는 에이전트 서버 API만 부르고, Supabase 읽기·쓰기는 서버가 맡음 |
-| API 연동은 ParamBlocks로 보내고 Result를 2차원 배열로 받음 | 서버 응답을 화면별 평평한 행 목록으로 설계하고 중첩 JSON은 쓰지 않음 |
-| 자동 새로고침과 타이머가 없음 | 넘기기·승인 응답에 갱신된 홈 데이터를 함께 돌려줌 |
-| API 응답 시간 제한이 문서에 없음 | LLM 처리가 길면 run id를 먼저 돌려주고 '결과 보기' 버튼으로 조회. 시연 전에 응답 시간을 재봄 |
-| 호출은 고정 IP(3.38.20.130)에서 옴 | 서버 방화벽에 이 IP를 허용하고, 키는 Secret Key로 보관 |
+| 외부 DB 연결은 MySQL·MSSQL·Oracle만 되고, FlexSQL에 붙일 수 있는 외부 DB는 MySQL·Azure MSSQL뿐임. FlexSQL은 Business 플랜 이상 | DB는 Azure SQL로 둠. 플렉스튜디오는 FlexSQL로 화면별 뷰만 조회하고, 쓰기는 서버 API로 보냄 |
+| API 연동과 FlexSQL 모두 ParamBlocks로 보내고 Result를 2차원 배열로 받음 | 화면마다 평평한 행을 돌려주는 뷰를 두고, 서버 API 응답도 평평한 행 목록으로 함. 중첩 JSON은 쓰지 않음 |
+| 자동 새로고침과 타이머가 없음 | 넘기기·승인·장면 실행 이벤트 뒤에 해당 화면의 FlexSQL 조회를 이어서 부름 |
+| API 응답 시간 제한이 문서에 없음 | LLM 처리가 길면 run id를 먼저 돌려주고 '결과 보기' 버튼으로 조회. LLM 호출마다 시간 제한을 두고 넘기면 미리 만든 대체 결과를 씀. 시연 전에 응답 시간을 재봄 |
+| 호출은 고정 IP(3.38.20.130)에서 옴 | 에이전트 서버와 Azure SQL 방화벽 규칙에 이 IP를 허용. 서버 키는 Secret Key로 보관하고, FlexSQL용 DB 계정에는 뷰 조회 권한만 줌 |
+| FlexSQL은 새 버전 발행(또는 현재 버전으로 반영)을 해야 시나리오에 반영됨 | 뷰 컬럼을 바꾸면 FlexSQL을 다시 발행. 개발 중에는 SQL Script Version을 0(최신)으로 두고, 발표 전에 버전을 고정 |
 | [FileUpload](https://docs.flextudio.com/flextudio/scenario/component/control/fileupload.md)는 플렉스튜디오 파일 시스템에 저장하고 FileKey를 줌. 외부 API로 넘기는 방법은 문서에 없음 | 파일을 서버로 넘길 수 있는지 먼저 시험. 안 되면 서버에 미리 올린 서류 이미지를 고르는 방식으로 대체 |
 | 마이크 API가 없고, Embed에는 script를 넣을 수 없음 | 부모 한마디는 글자 입력, 문서 미리보기는 script 없는 HTML |
 | Approval 컨트롤은 결재선 UI | 승인함은 컨렉션 반복과 버튼으로 직접 구성 |
@@ -107,19 +109,20 @@ flowchart LR
 
 | 갈래 | 시작 인원 | 맡는 일 |
 | --- | --- | --- |
-| 에이전트 서버 | 2명 | API, 계산 모듈(대조·잔액·마감·대상 판정), 공고 수집기, LLM 분류·문서 작성, Supabase |
-| 플렉스튜디오 화면 | 2명 | 화면 13개, API 연동(ParamBlocks·Result), 시연 제어 |
+| 에이전트 서버 | 2명 | API(넘기기·승인·장면 실행), 계산 모듈(대조·잔액·마감·대상 판정), 공고 수집기, LLM 분류·문서 작성, Azure SQL 테이블·뷰·시드 데이터 |
+| 플렉스튜디오 화면 | 2명 | 화면 13개, FlexSQL 조회 서비스, API 연동(넘기기·승인), 시연 제어 |
 | 시나리오·발표 | 1명 | 가상 데이터와 장면 입력, 시범 지역 공고 5건 정리, 문서 예시, 발표 자료, 리허설 진행 |
 
-1. **뼈대 확정:** 장면 입력과 가상 데이터, 테이블과 API 형식을 정합니다. 시범 지역 한 곳을 고르고 공고를 어떤 경로로 가져올지, FileUpload로 서버에 파일을 넘길 수 있는지도 이 단계에서 시험합니다.
-2. **병렬 구현:** 서버는 계산 모듈과 API를, 화면은 홈·넘기기·승인함·지원 레이더부터 만듭니다. 처음에는 고정 응답으로 화면을 연결합니다.
+1. **뼈대 확정:** 장면 입력과 가상 데이터, 테이블·뷰와 API 형식을 정합니다. 시범 지역 한 곳을 고르고 공고를 어떤 경로로 가져올지 정하고, FlexSQL로 Azure SQL 뷰를 조회할 수 있는지와 FileUpload로 서버에 파일을 넘길 수 있는지도 이 단계에서 시험합니다.
+2. **병렬 구현:** 서버는 계산 모듈과 API를, 화면은 홈·넘기기·승인함·지원 레이더부터 만듭니다. 화면은 시드 데이터를 넣은 뷰를 FlexSQL로 조회해 먼저 연결합니다.
 3. **에이전트 연결:** LLM 분류·추출, 대상 판정, 신청서와 문서 작성을 붙이고, 장면 1·2를 처음부터 끝까지 돌립니다. 장면 3은 그 뒤에 붙입니다.
-4. **리허설:** 실제 휴대폰으로 장면을 반복하고, 응답 시간과 문구를 다듬고, 발표 자료를 맞춥니다.
+4. **리허설:** 실제 휴대폰으로 장면을 반복하며 LLM 대체 결과 파일을 만들고, 응답 시간과 문구를 다듬고, 발표 자료를 맞춥니다.
 
 ## 확인할 것
 
-구현을 막을 수 있는 것은 앞의 세 개이고, 나머지는 시연 문구와 발표 근거의 정확도에 관한 것입니다.
+구현을 막을 수 있는 것은 앞의 네 개이고, 나머지는 시연 문구와 발표 근거의 정확도에 관한 것입니다.
 
+- [ ] FlexSQL 외부 DB 연결로 Azure SQL에 붙어 뷰를 조회할 수 있는지(테넌트 설정의 외부 DB 연동, 방화벽)
 - [ ] FileUpload로 올린 파일을 에이전트 서버가 받을 수 있는지(FileKey로 내려받기 등)
 - [ ] 플렉스튜디오 API 호출이 응답을 얼마나 기다리는지 실측
 - [ ] 시범 지역 공고를 공공데이터 API로 받을 수 있는 범위와, 구청·복지관 게시판의 이용 조건
@@ -132,33 +135,64 @@ flowchart LR
 
 # 데이터
 
-Supabase 테이블은 19개이고, 데이터는 원문 → 해석 → 장부 → 결과 순서로 흐릅니다. 공고는 수집기가 따로 넣고, 금액·날짜 계산과 대상 판정의 비교는 서버 코드가 합니다.
+Azure SQL 테이블은 시연용 12개와 장면 3용 4개(후순위)이고, 데이터는 원문 → 해석 → 장부 → 결과 순서로 흐릅니다. 공고는 수집기가 따로 넣고, 금액·날짜 계산과 대상 판정의 비교는 서버 코드가 합니다.
+
+Azure SQL Database를 기준으로 아래처럼 정합니다.
+
+- **id:** int IDENTITY 기본 키. share\_token만 uniqueidentifier(NEWID())로 두어 추측할 수 없게 합니다.
+- **글자:** 한글이 들어가므로 모두 nvarchar로 둡니다. raw\_text, quote, text, draft\_text, body\_html은 nvarchar(max)입니다.
+- **json 컬럼:** target\_rule, required\_docs, reasons, form\_draft, checklist, refs, fields, steps는 nvarchar(max)에 ISJSON 체크 제약을 걸고, 조회는 서버 코드나 OPENJSON으로 합니다.
+- **상태·종류 값:** 괄호 안의 값만 들어가도록 nvarchar 컬럼에 CHECK 제약을 겁니다.
+- **금액·날짜·여부:** 금액은 원 단위 int, 날짜는 date, 시각은 datetime2, processed·is\_first는 bit입니다.
+- **파일:** 서류·사진 원본은 에이전트 서버의 파일 저장소에 두고, file\_ref에는 그 경로만 넣습니다.
 
 ## 테이블
 
+시연(장면 1·2)에 쓰는 테이블은 12개입니다. 보호자는 child에, 정기 치료는 session에, 원문 해석 결과는 inbox\_item에 합쳤습니다.
+
 | 테이블 | 단계 | 담는 것 | 주요 컬럼 |
 | --- | --- | --- | --- |
-| child | 기본 | 아이 프로필 | id, name(가명), birth\_date, grade, school\_class, disability\_type, region, income\_bracket |
-| caregiver | 기본 | 보호자 | id, child\_id, name, role(주양육자·배우자·조부모), email |
-| organization | 기본 | 기관 | id, child\_id, name, kind(발달센터·병원·학교·교육청·주민센터·복지관), contact |
-| service | 기본 | 정기 치료 | id, organization\_id, therapy, therapist, weekday, start\_time, minutes, unit\_price, funding(바우처·교육청·자부담) |
-| inbox\_item | 원문 | 부모가 넘긴 것 | id, child\_id, kind(text·photo·file·note), raw\_text, file\_ref, received\_at, processed |
-| program | 원문 | 수집한 지원사업·프로그램 공고 | id, source(api·board), source\_url, title, org\_name, target\_rule(json), deadline, apply\_channel(email·online·visit·gov24), required\_docs(json), fetched\_at |
-| event | 해석 | 원문을 해석한 사건 | id, inbox\_item\_id, type, organization\_id, service\_id, occurs\_on, amount, quote, confidence |
-| session | 장부 | 회기 하나하나 | id, service\_id, date, status(예정·출석·결석·취소·보강), source\_event\_id |
-| voucher\_month | 장부 | 월별 바우처 | id, child\_id, program\_name, month, limit\_amount, self\_pay |
-| usage | 장부 | 바우처 이용 내역 | id, organization\_id, session\_id, used\_at, amount, source\_event\_id, match(일치·확인 필요·미확인) |
+| child | 기본 | 아이 프로필과 주양육자 | id, name(가명), birth\_date, grade, school\_class, disability\_type, region, income\_bracket, guardian\_name, guardian\_phone, guardian\_email |
+| organization | 기본 | 기관 | id, child\_id, name, kind(발달센터·병원·학교·교육청·주민센터·복지관), contact, color |
+| inbox\_item | 원문·해석 | 부모가 넘긴 것과 그 해석 결과 | id, child\_id, kind(text·photo·file·note), raw\_text, file\_ref, received\_at, processed, event\_type, organization\_id, occurs\_on, amount, quote, confidence |
+| program | 원문·해석 | 수집한 지원사업·프로그램 공고 | id, source(api·board), source\_url, title, org\_name, target\_rule(json), deadline, apply\_channel(email·online·visit·gov24), required\_docs(json), fetched\_at |
+| session | 장부 | 회기 하나하나 | id, organization\_id, therapy, therapist, date, start\_time, minutes, unit\_price, funding(바우처·교육청·자부담), status(예정·출석·결석·취소·보강), inbox\_item\_id |
+| voucher\_month | 장부 | 월별 바우처 | id, child\_id, program\_name, month, limit\_amount, self\_pay, used\_amount, balance, days\_left(뒤의 셋은 서버 계산) |
+| usage | 장부 | 바우처 이용 내역 | id, organization\_id, session\_id, used\_at, amount, source(연동·캡처), inbox\_item\_id, match(일치·확인 필요·미확인) |
 | document | 장부 | 서류함 | id, child\_id, doc\_type, issued\_on, valid\_until, file\_ref, fields(json) |
-| deadline | 장부 | 마감 | id, child\_id, title, due\_on, kind(서류·IEP·신청), ref\_id, status |
-| goal | 장부 | 기관별 목표 | id, organization\_id, area, description, started\_on, status |
-| note | 장부 | 치료 피드백과 부모 관찰 | id, child\_id, organization\_id, noted\_on, author(치료사·부모), text, goal\_id, is\_first |
 | program\_match | 결과 | 공고별 대상 판정 | id, program\_id, child\_id, eligible(해당·해당 가능·비해당), reasons(json), status(새 알림·관심·신청·숨김) |
 | application | 결과 | 신청 진행 | id, program\_id, child\_id, form\_draft(json), checklist(json), status(준비·승인 대기·제출·접수·보완 요청·선정·미선정), submitted\_at, result\_on |
 | approval | 결과 | 승인함 | id, child\_id, kind(확인 요청·보강 요청·신청 제출·문서 공유), title, draft\_text, refs(json), status(대기·승인·고쳐서 승인·보류·보냄), decided\_at |
-| output\_doc | 결과 | 생성 문서 | id, child\_id, kind(IEP 준비·인계서·진료 요약·신청서용 아이 소개), body\_html, refs(json), share\_token |
-| agent\_run | 결과 | 에이전트 실행 기록 | id, trigger, input\_ids, steps(json), manual\_steps, approvals, status, started\_at, finished\_at |
+| agent\_run | 결과 | 에이전트 실행 기록과 카운터 | id, trigger, input\_ids, steps(json), manual\_steps, approvals, status, started\_at, finished\_at |
 
-event.type은 일정 변경, 결석, 이용 내역, 보강, 공지, 치료 피드백, 서류, 담당자 변경 여덟 가지입니다. checklist는 신청에 필요한 서류마다 '있음·없음·만료'와 서류함 id를 담습니다. refs는 근거가 된 inbox\_item·note·session·program id 목록이고, 화면에서 근거 원문을 펼칠 때 씁니다.
+inbox\_item.event\_type은 일정 변경, 결석, 이용 내역, 보강, 공지, 치료 피드백, 서류, 담당자 변경 여덟 가지이고, 문자 하나에 사건 하나로 봅니다. session은 시연 달의 회기를 미리 다 넣어 두고, 보강 시간은 비어 있는 시간대를 코드로 찾습니다. checklist는 신청에 필요한 서류마다 '있음·없음·만료'와 서류함 id를 담습니다. refs는 근거가 된 inbox\_item·session·usage·program id 목록이고, 화면에서 근거 원문을 펼칠 때 씁니다. agent\_run은 오래 걸린 실행의 상태 조회(GET /runs/{id})와 홈 카운터에 씁니다.
+
+장면 3을 붙일 때 아래 네 개를 추가합니다.
+
+| 테이블 | 담는 것 | 주요 컬럼 |
+| --- | --- | --- |
+| goal | 기관별 목표 | id, organization\_id, area, description, started\_on, status |
+| note | 치료 피드백과 부모 관찰 | id, child\_id, organization\_id, noted\_on, author(치료사·부모), text, goal\_id, is\_first |
+| output\_doc | 생성 문서 | id, child\_id, kind(IEP 준비·인계서·진료 요약·신청서용 아이 소개), body\_html, refs(json), share\_token |
+| deadline | 다른 테이블에 없는 마감(IEP 협의 일정 등) | id, child\_id, title, due\_on, kind, ref\_id, status |
+
+## 화면별 뷰
+
+플렉스튜디오는 아래 뷰만 FlexSQL로 조회합니다. 뷰는 조인·정렬과 json 컬럼 풀기(OPENJSON)만 하고, 잔액·남은 날·대조·판정 같은 값은 서버가 테이블에 넣은 것을 그대로 읽습니다. 뷰의 행 하나가 컨렉션 반복 영역의 섹터 하나입니다.
+
+| 뷰 | 화면 | 행 하나에 담는 것 |
+| --- | --- | --- |
+| v\_home\_card | 홈 | 확인 카드(제목, 설명, 근거 원문, 연결 화면)와 카운터 |
+| v\_schedule | 시간표 | 회기(기관, 치료, 날짜·시각, 상태, 기관 색) |
+| v\_voucher\_summary | 바우처 장부 | 이번 달 한도·사용·잔액·소멸까지 남은 날·확인할 내역 수(1행) |
+| v\_usage | 바우처 장부 | 이용 내역, 대조 결과, 같은 날 센터 문자 |
+| v\_radar | 지원 레이더 | 지원 카드(판정, 이유, 마감, 원문 링크) |
+| v\_deadline | 지원 레이더 | 마감 하나(서류 유효기간, 신청 마감, 결과 발표일). document·program·application의 날짜를 UNION으로 모음 |
+| v\_application | 신청 진행 | 신청 상태, 결과 발표일, 신청서 미리보기 주소(1행) |
+| v\_checklist | 신청 진행 | 필요한 서류 하나(있음·없음·만료, 서류함 id) |
+| v\_document | 서류함 | 서류(종류, 발급일, 유효기간, 사진 경로) |
+| v\_approval | 승인함 | 승인 대기 항목(원문과 초안) |
+| v\_record | 아이 이력서 | 기관별 목표·기록·처음 해낸 날(후순위) |
 
 ## 가상 데이터
 
@@ -183,12 +217,12 @@ event.type은 일정 변경, 결석, 이용 내역, 보강, 공지, 치료 피�
 ## 처리 순서
 
 1. **받기:** POST /inbox가 부모가 넘긴 원문을 inbox\_item에 저장합니다. 공고는 수집기가 정해진 출처에서 가져와 program에 저장합니다(실서비스는 하루 한 번, 시연은 시연 제어 버튼).
-2. **해석(LLM):** 문자는 event로, 사진·캡처는 document 필드나 이용 내역으로, 공고는 대상 조건(target\_rule)과 접수 방법으로 바꿉니다. 결과마다 근거 문장(quote)을 남깁니다.
-3. **반영(코드):** session, usage, document, note, deadline을 갱신합니다.
+2. **해석(LLM):** 문자는 inbox\_item의 해석 컬럼(사건 종류·기관·날짜·금액)으로, 사진·캡처는 document 필드나 이용 내역으로, 공고는 대상 조건(target\_rule)과 접수 방법으로 바꿉니다. 결과마다 근거 문장(quote)을 남깁니다. 호출 방식은 [LLM 호출과 대체 결과](#llm-호출과-대체-결과)를 따릅니다.
+3. **반영(코드):** session, usage, document, voucher\_month를 갱신합니다. 장면 3을 붙이면 note와 deadline도 갱신합니다.
 4. **대조·계산·판정(코드):** 이용 내역과 출석을 대조하고, 바우처 잔액과 소멸 예정액, 서류 유효기간을 계산합니다. 공고의 대상 조건을 프로필과 비교해 해당·해당 가능·비해당을 정합니다.
 5. **판단(코드):** 아래 트리거 표에 맞으면 카드, 신청 진행, 승인 항목을 만듭니다.
-6. **작성(LLM과 툴):** 필요한 기록을 툴로 골라 읽고, 요청 문자, 신청서 초안, 문서를 씁니다.
-7. **제출·추적(코드):** 승인된 것만 보냅니다. 신청은 접수 확인, 보완 요청, 결과 발표일을 deadline에 올려 추적합니다.
+6. **작성(LLM):** 트리거마다 정해진 기록을 서버 코드가 모아 넣고, LLM을 한 번 불러 요청 문자, 신청서 초안, 문서를 받습니다([작성 단계의 입력](#작성-단계의-입력)).
+7. **제출·추적(코드):** 승인된 것만 보냅니다. 신청은 접수 확인, 보완 요청, 결과 발표일을 application에 기록해 추적합니다.
 8. **기록:** agent\_run에 단계, 근거, 카운터(손 작업 단계 수와 승인 수)를 남깁니다.
 
 ## 트리거
@@ -197,35 +231,28 @@ event.type은 일정 변경, 결석, 이용 내역, 보강, 공지, 치료 피�
 | --- | --- | --- | --- |
 | T1 결석일 이용 내역 | 결석으로 처리된 회기에 이용 내역이 있음 | 확인 요청 문자 초안, 신고 상담 안내 | 문자를 보낼 때 |
 | T2 바우처 소멸 예정 | 월말까지 남은 예정 회기를 다 써도 잔액이 남음 | 일정에 맞는 보강 시간, 보강 요청 문자 초안 | 필요 |
-| T3 일정 변경 | 일정 변경·보강 event | 시간표 갱신 카드 | 없음 |
+| T3 일정 변경 | 일정 변경·보강으로 해석된 문자 | 시간표 갱신 카드 | 없음 |
 | T4 영역 중복 | 같은 치료 영역에 바우처와 교육청 지원이 함께 잡힘 | 중복 경고 카드 | 없음 |
 | T5 새 지원 대상 | program\_match가 해당 또는 해당 가능(알림은 마감 5일 전까지) | 지원 카드(이유·마감), 신청서 초안, 서류 체크리스트, 빠진 서류 발급 안내 | 제출할 때 |
 | T6 신청 상태 변화 | 접수·보완 요청·결과를 알리는 메일이나 문자 | 상태 갱신, 보완 서류 안내, 선정 시 일정 반영 | 보완 제출할 때 |
 | T7 IEP 협의 안내 | 안내문에서 IEP 협의 일정이 추출됨 | 일정·마감 등록, IEP 준비 한 장 | 공유할 때 |
-| T8 담당자 변경 | 담당자 변경 event | 새 선생님용 인계서 | 공유할 때 |
+| T8 담당자 변경 | 담당자 변경으로 해석된 문자 | 새 선생님용 인계서 | 공유할 때 |
 | T9 서류 만료 | 서류 유효기간이 30일 안에 끝나거나 지남 | 마감 카드 | 없음 |
 | T10 처음 해낸 날 | 부모 한마디에 '처음' 표현이 있음 | note에 처음 표시 | 없음 |
 
 ## API
 
-플렉스튜디오가 부르는 API이고, 응답은 모두 평평한 행 목록(Result 2차원 배열)입니다.
+플렉스튜디오가 부르는 서버 API입니다. 쓰기와 서버가 만드는 HTML만 API로 두고, 조회는 [화면별 뷰](#화면별-뷰)를 FlexSQL로 읽습니다. 응답은 모두 평평한 행 목록(Result 2차원 배열)이고, 플렉스튜디오는 API 호출이 끝나면 같은 이벤트에서 해당 화면의 FlexSQL 조회를 다시 부릅니다.
 
 | 메서드·경로 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- |
-| POST /profile | 아이 프로필 등록·수정 | 프로필 1행 |
-| POST /inbox | 문자·사진·파일·한마디 넘기기 | run\_id, 갱신된 홈 카드 행 |
-| GET /home | 홈 카드와 카운터 | 카드 행 |
-| GET /schedule?week= | 주간 회기 | 회기 행 |
-| GET /voucher?month= | 바우처 장부 | 요약 1행, 이용 내역 행 |
-| GET /radar | 지원 카드와 마감 | 지원 행, 마감 행 |
-| GET /applications/{id} | 신청 진행 | 상태 1행, 서류 체크 행, 신청서 문서 id |
-| GET /documents | 서류함 | 서류 행 |
-| GET /approvals | 승인 대기 목록 | 승인 행 |
-| POST /approvals/{id} | 승인·고쳐서 승인·보류(신청 제출 포함) | 갱신된 홈 카드 행 |
-| GET /outputs/{id} | 생성 문서와 신청서 | script 없는 HTML(Embed용) |
-| GET /share/{token} | 기관용 읽기 전용 페이지 | HTML |
+| POST /profile | 아이 프로필 등록·수정, 대상 판정 다시 실행 | 프로필 1행 |
+| POST /inbox | 문자·사진·파일·한마디 넘기기 | run\_id |
+| POST /approvals/{id} | 승인·고쳐서 승인·보류, 승인된 것 제출·발송 | 승인 1행(상태) |
+| GET /outputs/{id} | 신청서(application.form\_draft로 그림)와 생성 문서(장면 3) | script 없는 HTML(Embed용) |
+| GET /share/{token} | 기관용 읽기 전용 페이지(장면 3, output\_doc.share\_token) | HTML |
 | GET /runs/{id} | 오래 걸린 실행의 결과 | 상태와 단계 |
-| POST /demo/scene/{n}, POST /demo/collect, POST /demo/reset | 시연 장면 넣기, 공고 수집 실행, 초기화 | 갱신된 홈 카드 행 |
+| POST /demo/scene/{n}, POST /demo/collect, POST /demo/reset | 시연 장면 넣기, 공고 수집 실행, 초기화 | run\_id |
 
 ## 해석 결과 형식
 
@@ -239,16 +266,28 @@ event.type은 일정 변경, 결석, 이용 내역, 보강, 공지, 치료 피�
 {"title": "주말 사회성 교실 참여자 모집", "target_rule": {"grade_min": 1, "grade_max": 3, "disability": ["발달장애"], "region": "시범 지역"}, "deadline": "2026-10-29", "apply_channel": "email", "required_docs": ["참가 신청서", "장애인증명서", "주민등록등본"], "quote": "관내 거주 초등 1~3학년 발달장애 아동"}
 ```
 
-## 작성 단계의 툴
+## 작성 단계의 입력
 
-- get\_profile(child): 아이 프로필
-- get\_notes(organization, from, to): 기간별 치료 피드백과 부모 관찰
-- get\_goals(organization): 기관별 목표
-- get\_sessions(month): 회기와 출석
-- get\_document(id): 서류 필드
-- get\_program(id): 공고 원문과 해석 결과
-- check\_documents(program): 필요한 서류를 서류함과 대조(코드)
-- save\_draft(kind, text, refs): 초안 저장. 보내는 툴은 없고, 제출과 발송은 승인 뒤에 서버가 합니다.
+작성은 툴 호출 루프 없이 LLM을 한 번만 부릅니다. 무엇이 필요한지는 트리거가 이미 알고 있으므로, 서버 코드가 아래 기록을 DB에서 모아 id와 함께 프롬프트에 넣고, LLM은 정해진 JSON 형식으로 초안만 돌려줍니다. 저장·제출·발송은 서버 코드가 하고, 바깥으로 보내는 것은 승인 뒤에만 합니다.
+
+| 작성할 것 | 트리거 | 서버가 넣는 기록 | 출력 |
+| --- | --- | --- | --- |
+| 확인 요청 문자 | T1 | 기관 이름·연락처, 결석 회기(날짜·치료), 같은 날 이용 내역(금액), 결석 안내 문자 원문 | 문자 초안, refs |
+| 보강 요청 문자 | T2 | 기관 이름·연락처, 잔액과 소멸까지 남은 날, 남은 예정 회기, 코드가 찾은 보강 후보 시간 | 문자 초안, refs |
+| 지원 카드 이유 | T5 | 공고 원문과 target\_rule, 프로필, program\_match 판정과 맞은 조건 | 이유 문장(학년·장애 유형·거주 지역), refs |
+| 신청서 초안 | T5 | 공고 원문과 신청 양식 항목, 프로필과 주양육자 정보, checklist(코드가 서류함과 대조한 결과) | form\_draft(항목별 값, 모르면 빈칸), refs |
+| IEP 준비 한 장·인계서(장면 3) | T7·T8 | 기관별 목표, 기간 안의 치료 피드백과 부모 관찰 전체, 일정 | body\_html, refs |
+
+서버는 받은 초안을 저장하기 전에 코드로 검사합니다. refs가 프롬프트에 넣은 id 안에 있는지, 초안에 들어간 날짜·금액이 넣은 값과 같은지 확인하고, 통과하지 못하면 아래 대체 결과를 씁니다.
+
+## LLM 호출과 대체 결과
+
+해석과 작성의 LLM 호출은 모두 한 번 호출이고, 시연이 LLM 응답 때문에 멈추지 않도록 대체 결과를 준비해 둡니다.
+
+- **미리 만들기:** 시연 입력이 고정이므로, 리허설 때 호출마다 입력과 결과를 서버의 대체 결과 파일(작업 종류와 입력 해시로 찾음)에 저장해 둡니다.
+- **시연 때:** 실제로 LLM을 부르고, 시간 제한(초기값 8초, 플렉스튜디오 응답 대기 실측 뒤 조정)을 넘기거나 오류가 나거나 형식·검사를 통과하지 못하면 같은 입력의 대체 결과를 씁니다.
+- **기록:** 실제 호출 결과를 썼는지 대체 결과를 썼는지 agent\_run.steps에 남기고, 리허설 때 대체 비율을 확인합니다.
+- **입력 고정:** 시연 중 문구를 바꾸면 입력 해시가 달라져 대체 결과가 없으므로, 시연 입력은 시연 제어 버튼으로만 넣습니다.
 
 ## 지켜야 할 규칙
 

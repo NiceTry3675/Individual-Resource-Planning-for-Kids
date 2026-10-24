@@ -1,0 +1,3 @@
+import { Link } from 'react-router-dom';
+import { scenarios } from './registry';
+export default function ScenarioIndex(){return <div style={{padding:'calc(var(--status-h, 0px) + 24px) 20px 32px'}}><Link to="/">‹ 홈</Link><h1 className="my-5 text-3xl font-bold">이음 발표 시나리오</h1><p className="mb-6 text-sm text-fx-text-muted">각 시나리오를 독립적으로 시작하고 다시 재생해요.</p>{scenarios.map((s,i)=><Link key={s.id} to={s.path} className="mb-4 block rounded-3xl bg-white p-5"><span className="text-xs text-fx-primary">SCENARIO {String(i+1).padStart(2,'0')}</span><h2 className="my-2 text-xl font-bold">{s.title}</h2><p className="text-sm leading-6 text-fx-text-muted">{s.description}</p></Link>)}</div>}

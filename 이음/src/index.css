@@ -1,0 +1,44 @@
+/* 사진 스타일: 연회색 바탕, 흰 카드, 파란 주요 버튼, 주황 강조(위쪽 그라데이션). */
+html:root,
+body,
+#root {
+  color-scheme: light;
+  --fx-color-background: #f2f2f7;
+  --fx-color-surface: #ffffff;
+  --fx-color-text: #1c1c1e;
+  --fx-color-text-muted: #636366;
+  --fx-color-border: #e1e1e6;
+  --fx-color-overlay: rgba(28, 28, 30, 0.4);
+  --fx-color-primary: #1a62d6;
+  --fx-color-on-primary: #ffffff;
+  --fx-color-primary-soft: #e4eefd;
+  --fx-color-secondary: #d1430c;
+  --fx-color-secondary-soft: #f6b38a;
+  --fx-color-accent: #4f6b00;
+  --fx-color-accent-soft: #f0f6d8;
+  --fx-color-success: #1b7f3b;
+  --fx-color-warning: #9a5b00;
+  --fx-color-error: #d70015;
+  --fx-color-info: #1a62d6;
+  --fx-color-data-1: #a24bd6;
+  --fx-color-data-2: #d1430c;
+  --fx-color-data-3: #0f766e;
+  --fx-color-data-4: #1a62d6;
+  --fx-color-data-5: #1b7f3b;
+  --fx-color-data-6: #9a5b00;
+}
+
+/* 스크롤은 되지만 스크롤바는 보이지 않게 한다. */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 홈의 '입력하기' 버튼: 첫 사진의 Continue 버튼 색. */
+a.btn-continue,
+button.btn-continue {
+  background-color: #4a85ee;
+}
